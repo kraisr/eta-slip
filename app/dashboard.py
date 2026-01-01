@@ -127,6 +127,8 @@ def main() -> None:
     colB.metric("Alerts now", str(n_alerts))
     colC.metric("Alert threshold", f"{thr*100:.1f}%")
 
+    st.divider()
+
     # --- Alerts ---
     alerts = out[out["pred_slip"]].copy().sort_values("proba_slip", ascending=False)
     if len(alerts) > 0:
@@ -168,7 +170,7 @@ def main() -> None:
 
     # Pick Top-N by risk among the filtered set, then display in travel order
     top = filtered.sort_values("proba_slip", ascending=False).head(int(top_n)).copy()
-    top = top.sort_values("order", ascending=True).reset_index(drop=True)
+    top = top.sort_values("order", ascending=False).reset_index(drop=True)
 
     if top.empty:
         st.info("No stations match your search.")
