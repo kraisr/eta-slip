@@ -1,0 +1,13 @@
+# 6 train - Manhattan core - southbound (downtown)
+640S
+639S
+638S
+637S
+636S
+635S
+634S
+633S
+632S
+631S
+630S
+629S
