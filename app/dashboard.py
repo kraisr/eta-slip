@@ -8,6 +8,7 @@ import joblib
 import numpy as np
 import streamlit as st
 from streamlit_extras.st_keyup import st_keyup
+from streamlit_autorefresh import st_autorefresh
 
 from etaslip.modeling.dataset import DatasetSpec
 from etaslip.online.constants import (
@@ -50,9 +51,9 @@ def main() -> None:
         top_n = st.slider("Number of stations to show", min_value=1, max_value=max_n, value=min(12, max_n))
         st.button("Refresh now")  # triggers rerun
 
-    # Auto-refresh every 30 seconds if available in your Streamlit version
-    if callable(getattr(st, "autorefresh", None)):
-        st.autorefresh(interval=30_000, key="auto_refresh_v2")
+    # Auto-refresh every 30s
+    tick = st_autorefresh(interval=30_000, key="auto_refresh")
+    # st.caption(f"refresh tick: {tick}")
 
     # --- Load model (auto latest) ---
     model_dir = resolve_model_dir_latest()
