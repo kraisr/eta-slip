@@ -1,0 +1,28 @@
+[project]
+name = "etaslip"
+version = "0.1.0"
+description = "Predict NYC 6-train ETA slip using GTFS-Realtime snapshots"
+authors = [
+    {name = "kraisr",email = "27452581+kraisr@users.noreply.github.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = "^3.12"
+dependencies = [
+    "requests (>=2.32.5,<3.0.0)",
+    "gtfs-realtime-bindings (>=2.0.0,<3.0.0)",
+    "python-dotenv (>=1.2.1,<2.0.0)"
+]
+
+[tool.poetry]
+packages = [{ include = "etaslip", from = "src" }]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "ruff (>=0.14.10,<0.15.0)",
+    "pytest (>=9.0.2,<10.0.0)"
+]
