@@ -23,6 +23,7 @@ from etaslip.online.model_artifacts import load_threshold, resolve_model_dir_lat
 from etaslip.online.stops import load_stop_id_to_name_map, read_ordered_stop_ids
 
 from ui_utils import bar_html
+from perf_panel import render_precision_panel
 
 
 def main() -> None:
@@ -196,6 +197,16 @@ def main() -> None:
         csv = out.sort_values("proba_slip", ascending=False).to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", data=csv, file_name="eta_slip_scores.csv", mime="text/csv")
 
+    st.divider()
+
+    render_precision_panel(
+        spec=spec,
+        pipe=pipe,
+        model_name=model_name,
+        thr=thr,
+        gold_root="gold/eta_slip",
+        max_days=14,
+    )
 
 if __name__ == "__main__":
     main()
