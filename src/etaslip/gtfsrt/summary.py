@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import gzip
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -9,20 +8,12 @@ from typing import Dict, List, Optional, Tuple
 
 from google.transit import gtfs_realtime_pb2
 
+from etaslip.gtfsrt.io import read_snapshot_gz
+from etaslip.gtfsrt.parse import decode_feedmessage
+
 
 def to_iso(ts: int) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
-
-
-def load_snapshot_gz(path: Path) -> bytes:
-    with gzip.open(path, "rb") as f:
-        return f.read()
-
-
-def decode_feedmessage(pb: bytes) -> gtfs_realtime_pb2.FeedMessage:
-    msg = gtfs_realtime_pb2.FeedMessage()
-    msg.ParseFromString(pb)
-    return msg
 
 
 @dataclass(frozen=True)
@@ -37,13 +28,12 @@ class SnapshotSummary:
     entity_count: int
     tripupdate_count: int
     route_counts: Counter
-    # stop_id -> sorted list of arrivals (eta, trip)
-    arrivals_by_stop: Dict[str, List[Arrival]]
+    arrivals_by_stop: Dict[str, List[Arrival]]  # stop_id -> sorted arrivals
 
 
 def summarize_snapshot(path: Path, route_id: str) -> SnapshotSummary:
-    pb = load_snapshot_gz(path)
-    msg = decode_feedmessage(pb)
+    pb = read_snapshot_gz(path)
+    msg: gtfs_realtime_pb2.FeedMessage = decode_feedmessage(pb)
 
     feed_ts = int(msg.header.timestamp) if msg.header.timestamp else None
     route_counts: Counter[str] = Counter()
@@ -77,7 +67,6 @@ def summarize_snapshot(path: Path, route_id: str) -> SnapshotSummary:
             if eta is not None:
                 arrivals_by_stop[stop_id].append(Arrival(eta=eta, trip_id=trip_id))
 
-    # Sort arrivals per stop
     for stop_id in list(arrivals_by_stop.keys()):
         arrivals_by_stop[stop_id].sort(key=lambda a: a.eta)
 
@@ -108,17 +97,12 @@ def format_summary(summary: SnapshotSummary, route_id: str, top_n: int = 20) -> 
         lines.append(f"WARNING: route_id='{route_id}' not seen in this snapshot.")
         return "\n".join(lines)
 
-    # Make a single list: earliest arrival per stop for printing
     rows: List[Tuple[int, str, str, Optional[float]]] = []
     for stop_id, arrivals in summary.arrivals_by_stop.items():
         if not arrivals:
             continue
         first = arrivals[0]
-        mins = (
-            (first.eta - summary.feed_ts) / 60.0
-            if (summary.feed_ts is not None)
-            else None
-        )
+        mins = ((first.eta - summary.feed_ts) / 60.0) if (summary.feed_ts is not None) else None
         rows.append((first.eta, stop_id, first.trip_id, mins))
 
     rows.sort(key=lambda x: x[0])
