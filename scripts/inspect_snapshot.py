@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from etaslip.gtfsrt_inspect import format_summary, summarize_snapshot
+from etaslip.gtfsrt import format_summary, summarize_snapshot
 
 
 def main() -> None:

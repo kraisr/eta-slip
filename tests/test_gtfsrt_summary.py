@@ -3,7 +3,7 @@ from pathlib import Path
 
 from google.transit import gtfs_realtime_pb2
 
-from etaslip.gtfsrt_inspect import format_summary, summarize_snapshot, to_iso
+from etaslip.gtfsrt.summary import format_summary, summarize_snapshot, to_iso
 
 
 def write_sample_pb_gz(path: Path, ts: int = 1_700_000_000) -> None:
@@ -11,7 +11,6 @@ def write_sample_pb_gz(path: Path, ts: int = 1_700_000_000) -> None:
     msg.header.gtfs_realtime_version = "2.0"
     msg.header.timestamp = ts
 
-    # Route 6 trip
     e1 = msg.entity.add()
     e1.id = "e1"
     tu1 = e1.trip_update
@@ -26,7 +25,6 @@ def write_sample_pb_gz(path: Path, ts: int = 1_700_000_000) -> None:
     stu2.stop_id = "640S"
     stu2.arrival.time = ts + 480
 
-    # Another route
     e2 = msg.entity.add()
     e2.id = "e2"
     tu2 = e2.trip_update

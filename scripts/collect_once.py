@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from etaslip.gtfsrt_ingest import fetch_feed, parse_feed_timestamp, write_snapshot
+from etaslip.gtfsrt import fetch_feed, parse_feed_timestamp, write_snapshot
 
 DEFAULT_FEED_URL = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"
 DEFAULT_FEED_NAME = "nyct%2Fgtfs"
