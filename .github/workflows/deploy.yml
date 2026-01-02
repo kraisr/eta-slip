@@ -13,7 +13,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment:
-      name: production
+      name: Production
       url: http://ec2-18-217-192-27.us-east-2.compute.amazonaws.com:8501/
     steps:
       - name: Configure AWS credentials (OIDC)
