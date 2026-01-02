@@ -61,7 +61,6 @@ def choose_threshold_max_f1(
     return best_thr
 
 
-
 def metrics_at_threshold(y_true, y_prob, thr: float) -> dict:
     """
     Precision/recall/F1 and confusion counts at a given threshold.
@@ -77,7 +76,11 @@ def metrics_at_threshold(y_true, y_prob, thr: float) -> dict:
 
     precision = tp / (tp + fp) if (tp + fp) else 0.0
     recall = tp / (tp + fn) if (tp + fn) else 0.0
-    f1 = (2 * precision * recall) / (precision + recall + 1e-12) if (precision + recall) else 0.0
+    f1 = (
+        (2 * precision * recall) / (precision + recall + 1e-12)
+        if (precision + recall)
+        else 0.0
+    )
 
     return {
         "threshold": float(thr),
@@ -126,7 +129,9 @@ def compute_classification_metrics(y_true, y_prob) -> dict:
     f1 = (2 * precs * recs) / (precs + recs + 1e-12)
     best_i = int(f1.argmax()) if len(f1) else 0
     out["best_f1"] = float(f1[best_i]) if len(f1) else 0.0
-    out["best_f1_threshold"] = float(thrs[best_i - 1]) if best_i > 0 and len(thrs) else 0.5
+    out["best_f1_threshold"] = (
+        float(thrs[best_i - 1]) if best_i > 0 and len(thrs) else 0.5
+    )
 
     out["n"] = int(len(y_true))
     out["pos_rate"] = float(y_true.mean()) if len(y_true) else 0.0

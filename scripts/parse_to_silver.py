@@ -7,7 +7,9 @@ from typing import Optional
 from etaslip.pipelines.silver_tripupdates import parse_raw_snapshot_to_silver
 
 
-def iter_raw_files(raw_root: Path, source_feed: str, dt: Optional[str], hour: Optional[str]):
+def iter_raw_files(
+    raw_root: Path, source_feed: str, dt: Optional[str], hour: Optional[str]
+):
     base = raw_root / f"feed={source_feed}"
     if dt is not None and hour is not None:
         pattern = base / f"dt={dt}" / f"hour={hour}" / "*.pb.gz"
@@ -16,7 +18,9 @@ def iter_raw_files(raw_root: Path, source_feed: str, dt: Optional[str], hour: Op
     else:
         pattern = base / "dt=*" / "hour=*" / "*.pb.gz"
 
-    for p in sorted(pattern.parent.parent.parent.glob(str(pattern).split(str(base))[1].lstrip("/"))):
+    for p in sorted(
+        pattern.parent.parent.parent.glob(str(pattern).split(str(base))[1].lstrip("/"))
+    ):
         # ^ a bit awkward to avoid Path.glob limitations across absolute strings
         # We'll just yield later using base.glob with a relative pattern
         yield p
@@ -29,9 +33,18 @@ def main() -> None:
     p.add_argument("--source-feed", default="nyct%2Fgtfs")
     p.add_argument("--dt", help="YYYY-MM-DD (optional)")
     p.add_argument("--hour", help="HH (00-23) (optional; requires --dt)")
-    p.add_argument("--route", action="append", default=[], help="route_id filter (repeatable), e.g. --route 6")
-    p.add_argument("--include-all-routes", action="store_true", help="ignore --route filters")
-    p.add_argument("--no-skip", action="store_true", help="re-write outputs even if they exist")
+    p.add_argument(
+        "--route",
+        action="append",
+        default=[],
+        help="route_id filter (repeatable), e.g. --route 6",
+    )
+    p.add_argument(
+        "--include-all-routes", action="store_true", help="ignore --route filters"
+    )
+    p.add_argument(
+        "--no-skip", action="store_true", help="re-write outputs even if they exist"
+    )
     args = p.parse_args()
 
     raw_root = Path(args.raw_root)

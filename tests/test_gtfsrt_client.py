@@ -18,6 +18,7 @@ def test_fetch_feed_sets_x_api_key_when_provided(monkeypatch):
         return DummyResp()
 
     import etaslip.gtfsrt.client as client_mod
+
     monkeypatch.setattr(client_mod.requests, "get", fake_get)
 
     out = fetch_feed("https://example.com/feed", api_key="secret123", timeout_sec=20)
@@ -41,6 +42,7 @@ def test_fetch_feed_omits_x_api_key_when_none(monkeypatch):
         return DummyResp()
 
     import etaslip.gtfsrt.client as client_mod
+
     monkeypatch.setattr(client_mod.requests, "get", fake_get)
 
     out = fetch_feed("https://example.com/feed", api_key=None, timeout_sec=20)

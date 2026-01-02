@@ -29,16 +29,39 @@ def main() -> None:
     ap.add_argument("--gold-root", default="gold")
     ap.add_argument("--source-feed", default="nyct%2Fgtfs")
     ap.add_argument("--dt", required=True, help="YYYY-MM-DD")
-    ap.add_argument("--hour", help="HH (00-23). If omitted, builds for all hours in dt.")
-    ap.add_argument("--route", action="append", default=[], help="route_id filter (repeatable), e.g. --route 6")
-    ap.add_argument("--include-all-routes", action="store_true", help="ignore --route filters")
-    ap.add_argument("--stop-ids-file", help="Optional text file with stop_id per line (watchlist).")
+    ap.add_argument(
+        "--hour", help="HH (00-23). If omitted, builds for all hours in dt."
+    )
+    ap.add_argument(
+        "--route",
+        action="append",
+        default=[],
+        help="route_id filter (repeatable), e.g. --route 6",
+    )
+    ap.add_argument(
+        "--include-all-routes", action="store_true", help="ignore --route filters"
+    )
+    ap.add_argument(
+        "--stop-ids-file", help="Optional text file with stop_id per line (watchlist)."
+    )
     ap.add_argument("--horizon-sec", type=int, default=300)
     ap.add_argument("--tolerance-sec", type=int, default=120)
     ap.add_argument("--slip-threshold-sec", type=int, default=120)
-    ap.add_argument("--no-skip", action="store_true", help="overwrite gold output if exists")
-    ap.add_argument("--min-lead-sec", type=int, default=0, help="require eta_t >= feed_ts + min_lead_sec")
-    ap.add_argument("--arrival-rank", type=int, default=1, help="use Nth upcoming arrival at t (1=next)")
+    ap.add_argument(
+        "--no-skip", action="store_true", help="overwrite gold output if exists"
+    )
+    ap.add_argument(
+        "--min-lead-sec",
+        type=int,
+        default=0,
+        help="require eta_t >= feed_ts + min_lead_sec",
+    )
+    ap.add_argument(
+        "--arrival-rank",
+        type=int,
+        default=1,
+        help="use Nth upcoming arrival at t (1=next)",
+    )
 
     args = ap.parse_args()
 
@@ -54,7 +77,9 @@ def main() -> None:
     hours = [args.hour] if args.hour is not None else [None]
 
     for hr in hours:
-        files = list_silver_files(silver_root, source_feed=args.source_feed, dt=args.dt, hour=hr)
+        files = list_silver_files(
+            silver_root, source_feed=args.source_feed, dt=args.dt, hour=hr
+        )
         if not files:
             print(f"No silver files found for dt={args.dt}, hour={hr}")
             continue

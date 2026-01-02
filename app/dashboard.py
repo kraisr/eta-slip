@@ -18,7 +18,12 @@ from etaslip.online.constants import (
     STOP_IDS_FILE_DEFAULT,
 )
 from etaslip.online.features import build_features_from_events
-from etaslip.online.gtfsrt import apply_filters, fetch_feed_bytes, maybe_gunzip, parse_tripupdates
+from etaslip.online.gtfsrt import (
+    apply_filters,
+    fetch_feed_bytes,
+    maybe_gunzip,
+    parse_tripupdates,
+)
 from etaslip.online.model_artifacts import load_threshold, resolve_model_dir_latest
 from etaslip.online.stops import load_stop_id_to_name_map, read_ordered_stop_ids
 
@@ -30,7 +35,9 @@ def main() -> None:
     st.set_page_config(page_title="ETA Slip", page_icon="🚇", layout="wide")
 
     st.title("🚇 Southbound 6 Train Delay Risk")
-    st.caption("Real-time: which Manhattan southbound stations are most likely to see an ETA slip soon.")
+    st.caption(
+        "Real-time: which Manhattan southbound stations are most likely to see an ETA slip soon."
+    )
 
     # --- Sidebar ---
     with st.sidebar:
@@ -49,7 +56,12 @@ def main() -> None:
         stop_order = read_ordered_stop_ids(stop_ids_path)
         max_n = len(stop_order)
 
-        top_n = st.slider("Number of stations to show", min_value=1, max_value=max_n, value=min(12, max_n))
+        top_n = st.slider(
+            "Number of stations to show",
+            min_value=1,
+            max_value=max_n,
+            value=min(12, max_n),
+        )
         st.button("Refresh now")  # triggers rerun
 
     # Auto-refresh every 30s
@@ -104,7 +116,9 @@ def main() -> None:
     )
 
     if feats.empty:
-        st.warning("No arrivals met the constraints right now (after filters). Try again in a minute.")
+        st.warning(
+            "No arrivals met the constraints right now (after filters). Try again in a minute."
+        )
         st.stop()
 
     X = feats[list(spec.numeric_features) + list(spec.categorical_features)]
@@ -128,7 +142,7 @@ def main() -> None:
     colA, colB, colC = st.columns([1.3, 1.0, 1.0])
     colA.metric("Updated", updated)
     colB.metric("Alerts now", str(n_alerts))
-    colC.metric("Alert threshold", f"{thr*100:.1f}%")
+    colC.metric("Alert threshold", f"{thr * 100:.1f}%")
 
     st.divider()
 
@@ -148,28 +162,38 @@ def main() -> None:
                     background: rgba(215, 48, 39, 0.14);
                     border: 1px solid rgba(215, 48, 39, 0.25);
                     margin-bottom: 10px;">
-                  <div style="font-size: 18px; font-weight: 800;">{station}</div>
-                  <div style="font-size: 14px; opacity: 0.95;">
+                    <div style="font-size: 18px; font-weight: 800;">{station}</div>
+                    <div style="font-size: 14px; opacity: 0.95;">
                     Next train ETA: <b>{eta_min:.0f} min</b> &nbsp;•&nbsp; Delay risk: <b>{pct:.0f}%</b>
-                  </div>
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
     else:
         st.subheader("✅ No alerts right now")
-        st.write("Everything looks normal for the covered Manhattan southbound stops (based on the current model).")
+        st.write(
+            "Everything looks normal for the covered Manhattan southbound stops (based on the current model)."
+        )
 
     st.divider()
 
     # --- Line strip with search ---
     st.subheader("Line strip")
 
-    q = st_keyup("Search station", placeholder="Type a station name (e.g., Grand Central)", key="station_search")
+    q = st_keyup(
+        "Search station",
+        placeholder="Type a station name (e.g., Grand Central)",
+        key="station_search",
+    )
 
     filtered = out.copy()
     if q.strip():
-        filtered = filtered[filtered["station_name"].astype(str).str.contains(q.strip(), case=False, na=False)]
+        filtered = filtered[
+            filtered["station_name"]
+            .astype(str)
+            .str.contains(q.strip(), case=False, na=False)
+        ]
 
     # Pick Top-N by risk among the filtered set, then display in travel order
     top = filtered.sort_values("proba_slip", ascending=False).head(int(top_n)).copy()
@@ -195,8 +219,14 @@ def main() -> None:
 
     # Download data
     with st.expander("Download data"):
-        csv = out.sort_values("proba_slip", ascending=False).to_csv(index=False).encode("utf-8")
-        st.download_button("Download CSV", data=csv, file_name="eta_slip_scores.csv", mime="text/csv")
+        csv = (
+            out.sort_values("proba_slip", ascending=False)
+            .to_csv(index=False)
+            .encode("utf-8")
+        )
+        st.download_button(
+            "Download CSV", data=csv, file_name="eta_slip_scores.csv", mime="text/csv"
+        )
 
     st.divider()
 
@@ -208,6 +238,7 @@ def main() -> None:
         gold_root="gold/eta_slip",
         max_days=14,
     )
+
 
 if __name__ == "__main__":
     main()

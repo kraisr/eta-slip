@@ -86,8 +86,14 @@ def iter_stop_time_rows(
 
             stop_sequence = int(stu.stop_sequence) if stu.stop_sequence else None
 
-            arrival_time = int(stu.arrival.time) if (stu.arrival and stu.arrival.time) else None
-            departure_time = int(stu.departure.time) if (stu.departure and stu.departure.time) else None
+            arrival_time = (
+                int(stu.arrival.time) if (stu.arrival and stu.arrival.time) else None
+            )
+            departure_time = (
+                int(stu.departure.time)
+                if (stu.departure and stu.departure.time)
+                else None
+            )
             eta = arrival_time if arrival_time is not None else departure_time
 
             delay_seconds = None

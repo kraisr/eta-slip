@@ -31,7 +31,9 @@ def parse_tripupdates(feed_bytes: bytes) -> pd.DataFrame:
     Returns rows: feed_ts, route_id, trip_id, stop_id, eta (unix seconds)
     """
     if gtfs_realtime_pb2 is None:
-        raise RuntimeError("Missing GTFS-RT protobuf bindings. Add dependency `gtfs-realtime-bindings`.")
+        raise RuntimeError(
+            "Missing GTFS-RT protobuf bindings. Add dependency `gtfs-realtime-bindings`."
+        )
 
     msg = gtfs_realtime_pb2.FeedMessage()
     msg.ParseFromString(feed_bytes)
@@ -72,7 +74,9 @@ def parse_tripupdates(feed_bytes: bytes) -> pd.DataFrame:
             )
 
     if not rows:
-        return pd.DataFrame(columns=["feed_ts", "route_id", "trip_id", "stop_id", "eta"])
+        return pd.DataFrame(
+            columns=["feed_ts", "route_id", "trip_id", "stop_id", "eta"]
+        )
 
     return pd.DataFrame(rows)
 

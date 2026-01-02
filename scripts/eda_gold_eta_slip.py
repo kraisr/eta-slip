@@ -9,7 +9,11 @@ from etaslip.modeling.dataset import DatasetSpec, load_gold
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gold-path", required=True, help="Gold parquet file OR directory (will read all *.parquet)")
+    ap.add_argument(
+        "--gold-path",
+        required=True,
+        help="Gold parquet file OR directory (will read all *.parquet)",
+    )
     args = ap.parse_args()
 
     spec = DatasetSpec()
@@ -24,7 +28,12 @@ def main() -> None:
             print(s.quantile([0.5, 0.75, 0.9, 0.95, 0.99]).to_string())
 
     print("\nPos rate by stop_id (top 20 by rows):")
-    g = df.groupby("stop_id")[spec.target_col].agg(["count", "mean"]).sort_values("count", ascending=False).head(20)
+    g = (
+        df.groupby("stop_id")[spec.target_col]
+        .agg(["count", "mean"])
+        .sort_values("count", ascending=False)
+        .head(20)
+    )
     print(g.to_string())
 
     print("\nFeature null rates:")

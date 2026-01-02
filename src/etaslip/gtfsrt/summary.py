@@ -102,7 +102,11 @@ def format_summary(summary: SnapshotSummary, route_id: str, top_n: int = 20) -> 
         if not arrivals:
             continue
         first = arrivals[0]
-        mins = ((first.eta - summary.feed_ts) / 60.0) if (summary.feed_ts is not None) else None
+        mins = (
+            ((first.eta - summary.feed_ts) / 60.0)
+            if (summary.feed_ts is not None)
+            else None
+        )
         rows.append((first.eta, stop_id, first.trip_id, mins))
 
     rows.sort(key=lambda x: x[0])
@@ -111,6 +115,8 @@ def format_summary(summary: SnapshotSummary, route_id: str, top_n: int = 20) -> 
     lines.append(f"Upcoming arrivals for route {route_id} (showing earliest per stop):")
     for eta, stop_id, trip_id, mins in rows[:top_n]:
         mins_s = f"{mins:6.1f} min" if mins is not None else "   ?"
-        lines.append(f"  ETA {to_iso(eta)}  ({mins_s})  stop_id={stop_id}  trip_id={trip_id}")
+        lines.append(
+            f"  ETA {to_iso(eta)}  ({mins_s})  stop_id={stop_id}  trip_id={trip_id}"
+        )
 
     return "\n".join(lines)

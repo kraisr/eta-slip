@@ -16,7 +16,9 @@ def snapshot_output_path(out_root: Path, feed_name: str, ts_epoch: int) -> Path:
     return out_dir / f"{ts_epoch}.pb.gz"
 
 
-def write_snapshot(out_root: Path, feed_name: str, pb: bytes, feed_ts: Optional[int]) -> Path:
+def write_snapshot(
+    out_root: Path, feed_name: str, pb: bytes, feed_ts: Optional[int]
+) -> Path:
     """
     Write a gzipped protobuf snapshot.
 

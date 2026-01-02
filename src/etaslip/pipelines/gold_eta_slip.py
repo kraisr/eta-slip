@@ -29,7 +29,9 @@ class GoldBuildStats:
 
     @property
     def match_rate(self) -> float:
-        return self.matched / self.candidate_examples if self.candidate_examples else 0.0
+        return (
+            self.matched / self.candidate_examples if self.candidate_examples else 0.0
+        )
 
 
 def list_silver_files(
@@ -81,7 +83,9 @@ def _extract_feed_ts(t: pa.Table) -> int:
     raise ValueError("No feed_ts found in snapshot table.")
 
 
-def _nearest_time(sorted_ts: list[int], target: int) -> tuple[Optional[int], Optional[int]]:
+def _nearest_time(
+    sorted_ts: list[int], target: int
+) -> tuple[Optional[int], Optional[int]]:
     """
     Return (nearest_ts, abs_diff). If list is empty -> (None, None)
     """
@@ -257,7 +261,6 @@ def build_gold_eta_slip_for_files(
             # headway feature: still computed from the earliest two arrivals overall
             headway = (arrivals[1][0] - arrivals[0][0]) if len(arrivals) >= 2 else None
 
-
             key = (stop_id, trip1)
             eta2 = lookup.get(key)
 
@@ -329,7 +332,13 @@ def gold_output_path(
     horizon_sec: int,
     source_feed: str,
 ) -> Path:
-    base = gold_root / "eta_slip" / f"feed={source_feed}" / f"horizon_sec={horizon_sec}" / f"dt={dt}"
+    base = (
+        gold_root
+        / "eta_slip"
+        / f"feed={source_feed}"
+        / f"horizon_sec={horizon_sec}"
+        / f"dt={dt}"
+    )
     if hour is not None:
         base = base / f"hour={hour}"
     base.mkdir(parents=True, exist_ok=True)

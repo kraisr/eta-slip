@@ -23,7 +23,9 @@ def build_features_from_events(
       eta_t_minutes, top2_headway_sec, num_arrivals_listed, dow, hour, minute, stop_id
     """
     if events.empty:
-        return pd.DataFrame(columns=list(spec.numeric_features) + list(spec.categorical_features))
+        return pd.DataFrame(
+            columns=list(spec.numeric_features) + list(spec.categorical_features)
+        )
 
     feed_ts = int(events["feed_ts"].iloc[0])
     feed_dt = datetime.fromtimestamp(feed_ts, tz=tz)
@@ -36,7 +38,9 @@ def build_features_from_events(
         e = e[e["lead_sec"] >= int(min_lead_sec)]
 
     if e.empty:
-        return pd.DataFrame(columns=list(spec.numeric_features) + list(spec.categorical_features))
+        return pd.DataFrame(
+            columns=list(spec.numeric_features) + list(spec.categorical_features)
+        )
 
     rows: list[dict] = []
     for stop_id, g in e.groupby("stop_id", sort=False):
@@ -61,7 +65,7 @@ def build_features_from_events(
         )
 
     df = pd.DataFrame(rows)
-    for col in (list(spec.numeric_features) + list(spec.categorical_features)):
+    for col in list(spec.numeric_features) + list(spec.categorical_features):
         if col not in df.columns:
             df[col] = np.nan
     return df

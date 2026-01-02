@@ -7,7 +7,12 @@ from etaslip.online.constants import (
     Sensitivity,
 )
 from etaslip.online.features import build_features_from_events
-from etaslip.online.gtfsrt import apply_filters, fetch_feed_bytes, maybe_gunzip, parse_tripupdates
+from etaslip.online.gtfsrt import (
+    apply_filters,
+    fetch_feed_bytes,
+    maybe_gunzip,
+    parse_tripupdates,
+)
 from etaslip.online.model_artifacts import load_threshold, resolve_model_dir_latest
 from etaslip.online.stops import load_stop_id_to_name_map, read_ordered_stop_ids
 

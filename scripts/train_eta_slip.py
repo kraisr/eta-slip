@@ -22,6 +22,7 @@ from etaslip.modeling.trainers import predict_proba, train_logreg, train_xgb
 
 MIN_VAL_POS = 5  # guardrail for tiny validation slices
 
+
 def _write_latest_pointer(out_root: Path, *, out_root_parent: Path) -> None:
     """
     Atomically write models/eta_slip/latest.txt -> path to the latest run dir.
@@ -55,16 +56,25 @@ def main() -> None:
     ap.add_argument("--headway-scale-sec", type=float, default=900.0)
     ap.add_argument("--eta-min-min", type=float, default=5.0)
     ap.add_argument("--eta-span-min", type=float, default=20.0)
-    ap.add_argument("--min-pred-pos", type=int, default=5, help="Min predicted positives when tuning threshold")
+    ap.add_argument(
+        "--min-pred-pos",
+        type=int,
+        default=5,
+        help="Min predicted positives when tuning threshold",
+    )
 
     args = ap.parse_args()
 
     spec = DatasetSpec()
     df = load_gold(args.gold_path, spec)
-    train_df, val_df, test_df = time_split_3way(df, train_frac=args.train_frac, val_frac=args.val_frac)
+    train_df, val_df, test_df = time_split_3way(
+        df, train_frac=args.train_frac, val_frac=args.val_frac
+    )
 
     if len(train_df) == 0 or len(val_df) == 0 or len(test_df) == 0:
-        raise SystemExit("Not enough rows after split. Collect more gold data or adjust split fractions.")
+        raise SystemExit(
+            "Not enough rows after split. Collect more gold data or adjust split fractions."
+        )
 
     y_train = train_df[spec.target_col].astype(int).to_numpy()
     y_val = val_df[spec.target_col].astype(int).to_numpy()
@@ -89,12 +99,17 @@ def main() -> None:
     }
 
     # Baselines (evaluate on TEST)
-    metrics["baselines"]["no_slip"] = compute_classification_metrics(y_test, baseline_no_slip(test_df))
+    metrics["baselines"]["no_slip"] = compute_classification_metrics(
+        y_test, baseline_no_slip(test_df)
+    )
     metrics["baselines"]["headway_score"] = compute_classification_metrics(
         y_test, baseline_headway_score(test_df, scale_sec=args.headway_scale_sec)
     )
     metrics["baselines"]["eta_minutes_score"] = compute_classification_metrics(
-        y_test, baseline_eta_minutes_score(test_df, min_min=args.eta_min_min, span_min=args.eta_span_min)
+        y_test,
+        baseline_eta_minutes_score(
+            test_df, min_min=args.eta_min_min, span_min=args.eta_span_min
+        ),
     )
 
     # Output dir
@@ -114,13 +129,17 @@ def main() -> None:
         # Decide threshold
         if int(y_val.sum()) >= MIN_VAL_POS:
             prob_val = predict_proba(pipe, val_df, spec)
-            thr = choose_threshold_max_f1(y_val, prob_val, min_pred_pos=args.min_pred_pos)
+            thr = choose_threshold_max_f1(
+                y_val, prob_val, min_pred_pos=args.min_pred_pos
+            )
             method = "max_f1_val"
         else:
             if name == "xgb":
                 # fallback: tune on TRAIN (not TEST) if val has too few positives
                 prob_train = predict_proba(pipe, train_df, spec)
-                thr = choose_threshold_max_f1(y_train, prob_train, min_pred_pos=max(args.min_pred_pos, 10))
+                thr = choose_threshold_max_f1(
+                    y_train, prob_train, min_pred_pos=max(args.min_pred_pos, 10)
+                )
                 method = "max_f1_train_fallback_low_val_pos"
             else:
                 thr = 0.5

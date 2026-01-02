@@ -18,7 +18,9 @@ def baseline_headway_score(df: pd.DataFrame, scale_sec: float = 900.0) -> np.nda
     return np.clip(x / float(scale_sec), 0.0, 1.0)
 
 
-def baseline_eta_minutes_score(df: pd.DataFrame, min_min: float = 5.0, span_min: float = 20.0) -> np.ndarray:
+def baseline_eta_minutes_score(
+    df: pd.DataFrame, min_min: float = 5.0, span_min: float = 20.0
+) -> np.ndarray:
     """
     Continuous score based on how far away the ETA is.
     Example: eta<=5min -> 0.0, eta>=25min -> 1.0

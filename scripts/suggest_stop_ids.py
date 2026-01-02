@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Optional
 
 
-def iter_silver_files(silver_root: Path, source_feed: str, dt: str, hour: Optional[str]) -> list[Path]:
+def iter_silver_files(
+    silver_root: Path, source_feed: str, dt: str, hour: Optional[str]
+) -> list[Path]:
     base = silver_root / "trip_updates" / f"feed={source_feed}" / f"dt={dt}"
     rel = f"hour={hour}/*.parquet" if hour else "hour=*/*.parquet"
     return sorted(base.glob(rel))
@@ -18,9 +20,19 @@ def main() -> None:
     ap.add_argument("--source-feed", default="nyct%2Fgtfs")
     ap.add_argument("--dt", required=True, help="YYYY-MM-DD")
     ap.add_argument("--hour", help="HH (00-23). If omitted, scans all hours for dt.")
-    ap.add_argument("--route", action="append", default=[], help="route_id filter (repeatable), e.g. --route 6")
-    ap.add_argument("--include-all-routes", action="store_true", help="ignore --route filters")
-    ap.add_argument("--suffix", help="only include stop_ids ending with this suffix (e.g. S for southbound)")
+    ap.add_argument(
+        "--route",
+        action="append",
+        default=[],
+        help="route_id filter (repeatable), e.g. --route 6",
+    )
+    ap.add_argument(
+        "--include-all-routes", action="store_true", help="ignore --route filters"
+    )
+    ap.add_argument(
+        "--suffix",
+        help="only include stop_ids ending with this suffix (e.g. S for southbound)",
+    )
     ap.add_argument("--top", type=int, default=50, help="how many stop_ids to print")
     ap.add_argument(
         "--min-presence-frac",
@@ -28,7 +40,9 @@ def main() -> None:
         default=0.0,
         help="only include stop_ids present in >= this fraction of snapshots (0..1)",
     )
-    ap.add_argument("--write", help="write selected stop_ids (after filters) to this file")
+    ap.add_argument(
+        "--write", help="write selected stop_ids (after filters) to this file"
+    )
     args = ap.parse_args()
 
     import pyarrow as pa
@@ -38,14 +52,16 @@ def main() -> None:
     silver_root = Path(args.silver_root)
     files = iter_silver_files(silver_root, args.source_feed, args.dt, args.hour)
     if not files:
-        raise SystemExit(f"No silver files found under {silver_root}/trip_updates/feed={args.source_feed}/dt={args.dt}")
+        raise SystemExit(
+            f"No silver files found under {silver_root}/trip_updates/feed={args.source_feed}/dt={args.dt}"
+        )
 
     route_filter = None
     if not args.include_all_routes and args.route:
         route_filter = set(args.route)
 
     presence = Counter()  # stop_id -> #snapshots where it appears
-    rows = Counter()      # stop_id -> total row count
+    rows = Counter()  # stop_id -> total row count
 
     snapshots_seen = 0
 
@@ -56,7 +72,9 @@ def main() -> None:
         t = t.filter(mask)
 
         if route_filter:
-            t = t.filter(pc.is_in(t["route_id"], value_set=pa.array(list(route_filter))))
+            t = t.filter(
+                pc.is_in(t["route_id"], value_set=pa.array(list(route_filter)))
+            )
 
         # Pull stop_ids
         stop_ids = [s for s in t["stop_id"].to_pylist() if s]
@@ -90,7 +108,9 @@ def main() -> None:
     if args.suffix:
         print(f"Stop suffix filter: {args.suffix!r}")
     if args.min_presence_frac > 0:
-        print(f"Min presence: {min_presence}/{snapshots_seen} snapshots (>= {args.min_presence_frac:.2f})")
+        print(
+            f"Min presence: {min_presence}/{snapshots_seen} snapshots (>= {args.min_presence_frac:.2f})"
+        )
     print("")
     print(f"{'stop_id':<12} {'presence':>9} {'rows':>9}")
     print("-" * 34)

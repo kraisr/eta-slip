@@ -24,7 +24,9 @@ def silver_output_path(
     """
     dt = time.strftime("%Y-%m-%d", time.localtime(feed_ts))
     hh = time.strftime("%H", time.localtime(feed_ts))
-    out_dir = silver_root / "trip_updates" / f"feed={source_feed}" / f"dt={dt}" / f"hour={hh}"
+    out_dir = (
+        silver_root / "trip_updates" / f"feed={source_feed}" / f"dt={dt}" / f"hour={hh}"
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     suffix = part_name or f"part-{feed_ts}"
     return out_dir / f"{suffix}.parquet"

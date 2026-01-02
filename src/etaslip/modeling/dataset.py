@@ -77,13 +77,19 @@ def load_gold(path: Union[str, Path], spec: DatasetSpec) -> pd.DataFrame:
         if c in df.columns:
             df[c] = df[c].astype("string")
 
-    needed = list(spec.numeric_features) + list(spec.categorical_features) + [spec.target_col, "feed_ts"]
+    needed = (
+        list(spec.numeric_features)
+        + list(spec.categorical_features)
+        + [spec.target_col, "feed_ts"]
+    )
     df = df.dropna(subset=[c for c in needed if c in df.columns])
 
     return df
 
+
 def time_split(
-    df: pd.DataFrame, *,
+    df: pd.DataFrame,
+    *,
     train_frac: float = 0.8,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -96,6 +102,7 @@ def time_split(
     cut = int(len(df) * train_frac)
     cut = max(1, min(cut, len(df) - 1))
     return df.iloc[:cut].copy(), df.iloc[cut:].copy()
+
 
 def _to_utc_datetime(ts: pd.Series) -> pd.Series:
     # Handles int seconds / int ms / datetime-like / strings.

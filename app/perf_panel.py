@@ -15,7 +15,9 @@ NY_TZ = ZoneInfo("America/New_York")
 _DT_RE = re.compile(r"/dt=(\d{4}-\d{2}-\d{2})/")
 
 
-def _list_gold_files(gold_root: str = "gold/eta_slip", max_days: int = 14) -> list[Path]:
+def _list_gold_files(
+    gold_root: str = "gold/eta_slip", max_days: int = 14
+) -> list[Path]:
     """
     Auto-discovers gold parquet files and keeps the most recent N distinct dt=YYYY-MM-DD partitions.
     """
@@ -74,7 +76,11 @@ def _eval_precision_by_day(
     if spec.match_col in df.columns:
         df = df[df[spec.match_col] == spec.required_match_value].copy()
 
-    needed = set([spec.target_col, "feed_ts"]) | set(spec.numeric_features) | set(spec.categorical_features)
+    needed = (
+        set([spec.target_col, "feed_ts"])
+        | set(spec.numeric_features)
+        | set(spec.categorical_features)
+    )
     missing = [c for c in needed if c not in df.columns]
     if missing:
         return pd.DataFrame()
@@ -142,7 +148,9 @@ def render_precision_panel(
         st.info("Gold files were found, but no rows were loaded.")
         return
 
-    mdf = _eval_precision_by_day(df_gold, pipe=pipe, spec=spec, thr=thr, model_name=model_name)
+    mdf = _eval_precision_by_day(
+        df_gold, pipe=pipe, spec=spec, thr=thr, model_name=model_name
+    )
     if mdf.empty:
         st.info("Could not compute precision (missing columns or no evaluable rows).")
         return
@@ -155,7 +163,11 @@ def render_precision_panel(
         .mark_line(point=True)
         .encode(
             x=alt.X("day:N", title="Day"),
-            y=alt.Y("precision_pct:Q", title="Alert precision (%)", scale=alt.Scale(domain=[0, 100])),
+            y=alt.Y(
+                "precision_pct:Q",
+                title="Alert precision (%)",
+                scale=alt.Scale(domain=[0, 100]),
+            ),
             tooltip=["day", "model", "precision_pct", "alerts", "threshold", "n"],
         )
     )
