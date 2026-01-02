@@ -55,7 +55,7 @@ The dashboard helps you determine:
 
 ---
 
-## Repository layout
+## 📁 Repository layout
 
 - `scripts/`
   - data collection, parsing to silver, gold labeling, training, EDA utilities
