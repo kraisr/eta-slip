@@ -5,7 +5,7 @@ set -euo pipefail
 if command -v poetry >/dev/null 2>&1; then
   PY_CMD="poetry run python"
 else
-  PY_CMD="python"
+  PY_CMD="python3"
 fi
 
 RAW_PATH="$1"
