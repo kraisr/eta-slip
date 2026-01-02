@@ -1,6 +1,6 @@
 <h1 align="center">🚇 ETASlip — Real-time 6 Train Delay Risk (NYC)</h1>
 
-ETASlip is an end-to-end system that continuously collects MTA TripUpdates using GTFS-Realtime API, builds a labeled dataset (“ETA slip” events), trains a model, and serves a live dashboard for Manhattan southbound **6** train stations.
+ETASlip is an end-to-end ML system that continuously collects MTA TripUpdates using GTFS-Realtime API, builds a labeled dataset (“ETA slip” events), trains a model, and serves a live dashboard for Manhattan southbound **6** train stations.
 
 The dashboard helps you determine:
 **“Which stations are most likely to experience an ETA slip soon?”**
