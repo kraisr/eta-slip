@@ -27,7 +27,7 @@ jobs:
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --comment "Deploy ETASlip from GitHub Actions" \
-            --parameters commands='["/opt/etaslip/bin/deploy.sh"]' \
+            --parameters commands='["sudo -u ec2-user -H bash -lc '\''/opt/etaslip/bin/deploy.sh'\''"]' \
             --query "Command.CommandId" \
             --output text)
           echo "command_id=$CMD_ID" >> $GITHUB_OUTPUT
