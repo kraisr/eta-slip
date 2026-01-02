@@ -22,6 +22,26 @@ from etaslip.modeling.trainers import predict_proba, train_logreg, train_xgb
 
 MIN_VAL_POS = 5  # guardrail for tiny validation slices
 
+def _write_latest_pointer(out_root: Path, *, out_root_parent: Path) -> None:
+    """
+    Atomically write models/eta_slip/latest.txt -> path to the latest run dir.
+    We write a *relative* path (from repo root) like: models/eta_slip/run=...
+    so it works both locally and in containers (/app/models/...).
+    """
+    latest_path = out_root_parent / "latest.txt"
+    latest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Prefer a relative path if possible
+    try:
+        rel = out_root.relative_to(Path.cwd())
+        text = str(rel)
+    except Exception:
+        text = str(out_root)
+
+    tmp = latest_path.with_suffix(".txt.tmp")
+    tmp.write_text(text + "\n")
+    tmp.replace(latest_path)
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -128,6 +148,7 @@ def main() -> None:
         _fit_and_eval("xgb", pipe)
 
     (out_root / "metrics.json").write_text(json.dumps(metrics, indent=2))
+    _write_latest_pointer(out_root, out_root_parent=Path(args.out_root))
     print(f"Saved artifacts to: {out_root}")
     print(json.dumps(metrics, indent=2))
 
