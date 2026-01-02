@@ -9,7 +9,7 @@ The dashboard helps you determine:
 
 ## What it does
 
-### 🟢 Live “Delay Risk” dashboard
+### 🔴 Live “Delay Risk” dashboard
 - Fetches the latest GTFS-Realtime TripUpdates and scores the current snapshot
 - Shows a clean view:
   - **Alerts** (stations above an alert threshold)
