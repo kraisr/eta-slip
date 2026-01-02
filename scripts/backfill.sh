@@ -22,7 +22,7 @@ find "$RAW_PATH" -type d -path '*/dt=*/hour=*' \
       $PY_CMD scripts/parse_to_silver.py \
         --dt "$dt" --hour "$hour" --route 6
 
-      $PY_CMD run python scripts/build_gold_eta_slip.py \
+      $PY_CMD scripts/build_gold_eta_slip.py \
         --dt "$dt" --hour "$hour" --route 6 \
         --stop-ids-file "$STOP_IDS_FILE" \
         --min-lead-sec "$MIN_LEAD_SEC"
