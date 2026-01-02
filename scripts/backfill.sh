@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Make src-layout imports work when not using Poetry
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="$ROOT_DIR/src:${PYTHONPATH:-}"
+
 # Use Poetry if available, else fall back to system python.
 if command -v poetry >/dev/null 2>&1; then
   PY_CMD="poetry run python"
