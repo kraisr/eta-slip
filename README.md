@@ -37,19 +37,20 @@ The dashboard helps you determine:
 - Uses **S3** as durable storage for raw data and training artifacts
 - Automates new data generation, retraining and redeploy via **GitHub Actions** and **AWS SSM**
 - Scheduled retraining workflow (example: every 4 days at 4AM ET)
-- <details>
-    <summary>Example AWS production loop:</summary>
-  
-    - Collector container write raw snapshots to disk and syncs to S3 periodically
-    - Retrain script:
-      - sync raw data from S3
-      - rebuild silver + gold data
-      - train new model
-      - sync model back to S3
-      - restart dashboard container
 
-  (Deployment and retraining can be triggered on EC2 via AWS SSM from GitHub Actions.)
-  </details>
+<details>
+  <summary>Example AWS production loop:</summary>
+
+  - Collector container write raw snapshots to disk and syncs to S3 periodically
+  - Retrain script:
+    - sync raw data from S3
+    - rebuild silver + gold data
+    - train new model
+    - sync model back to S3
+    - restart dashboard container
+
+(Deployment and retraining can be triggered on EC2 via AWS SSM from GitHub Actions.)
+</details>
 
 
 ---
