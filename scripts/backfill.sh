@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Use Poetry if available, else fall back to system python.
+if command -v poetry >/dev/null 2>&1; then
+  PY_CMD="poetry run python"
+else
+  PY_CMD="python"
+fi
+
 RAW_PATH="$1"
 
 STOP_IDS_FILE="config/stop_ids_manhattan_6_southbound.txt"
@@ -12,10 +19,10 @@ find "$RAW_PATH" -type d -path '*/dt=*/hour=*' \
   | while read -r dt hour; do
       echo "=== dt=$dt hour=$hour ==="
 
-      poetry run python scripts/parse_to_silver.py \
+      $PY_CMD scripts/parse_to_silver.py \
         --dt "$dt" --hour "$hour" --route 6
 
-      poetry run python scripts/build_gold_eta_slip.py \
+      $PY_CMD run python scripts/build_gold_eta_slip.py \
         --dt "$dt" --hour "$hour" --route 6 \
         --stop-ids-file "$STOP_IDS_FILE" \
         --min-lead-sec "$MIN_LEAD_SEC"
