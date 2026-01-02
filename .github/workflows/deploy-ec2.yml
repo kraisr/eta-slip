@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy over SSH
+        run: |
+          echo "EC2_HOST set? ${{ secrets.EC2_HOST != '' }}"
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.EC2_HOST }}
