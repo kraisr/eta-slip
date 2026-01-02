@@ -9,7 +9,7 @@ The dashboard helps you determine:
 
 ## What it does
 
-### Live “Delay Risk” dashboard
+### 🟢 Live “Delay Risk” dashboard
 - Fetches the latest GTFS-Realtime TripUpdates and scores the current snapshot
 - Shows a clean view:
   - **Alerts** (stations above an alert threshold)
@@ -17,13 +17,13 @@ The dashboard helps you determine:
   - **Search-as-you-type** station search
 - Converts stop IDs into readable **station names** using `config/stop_id_to_name.json`
 
-### Continuous data pipeline (raw → silver → gold)
+### 🧱 Continuous data pipeline (raw → silver → gold)
 - **Raw**: stores the original GTFS-RT snapshots (`.pb`/`.pb.gz`) organized by date/hour
 - **Silver**: parses TripUpdates into structured parquet
 - **Gold**: builds labeled examples for “ETA slip within horizon” for the 6 train Manhattan core stops  
   (includes match rates, missing-at-t+ stats, and slip rate diagnostics)
 
-### Training and model artifacts
+### 🤖 Training and model artifacts
 - Trains baseline models and ML models (Logistic Regression, XGBoost)
 - Produces reproducible run artifacts:
   - `metrics.json` with PR AUC / ROC AUC / threshold selection details
@@ -32,11 +32,25 @@ The dashboard helps you determine:
 - Maintains a stable pointer for the serving layer:
   - `models/eta_slip/latest.txt` points to the most recent trained run folder
 
-### Deployment + automation (AWS EC2 + S3 + GitHub Actions)
-- Runs the app and long-running collectors in containers on **EC2**
+### ☁️ Deployment + automation (AWS EC2 + S3 + GitHub Actions)
+- Runs the app and long-running collectors in docker containers on **EC2**
 - Uses **S3** as durable storage for raw data and training artifacts
-- Automates retraining and redeploy via **AWS SSM**
+- Automates new data generation, retraining and redeploy via **GitHub Actions** and **AWS SSM**
 - Scheduled retraining workflow (example: every 4 days at 4AM ET)
+- <details>
+    <summary>Example AWS production loop:</summary>
+  
+    - Collector container write raw snapshots to disk and syncs to S3 periodically
+    - Retrain script:
+      - sync raw data from S3
+      - rebuild silver + gold data
+      - train new model
+      - sync model back to S3
+      - restart dashboard container
+
+  (Deployment and retraining can be triggered on EC2 via AWS SSM from GitHub Actions.)
+  </details>
+
 
 ---
 
@@ -55,7 +69,7 @@ The dashboard helps you determine:
 
 ---
 
-## Data + labeling (ETA slip)
+## 📊 Data + labeling (ETA slip)
 ETASlip generates supervised labels from real GTFS-RT snapshots by:
 - selecting arrivals with a minimum lead time (to avoid unstable near-arrival updates)
 - tracking how the ETA changes over time for the same trip/stop
@@ -78,7 +92,7 @@ This produces a dataset where each row corresponds to a station snapshot with:
 
 ---
 
-# Instructions
+# 🛠️ Instructions
 
 ## 1) Local setup
 Prereqs:
