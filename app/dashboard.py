@@ -53,7 +53,8 @@ def main() -> None:
         st.button("Refresh now")  # triggers rerun
 
     # Auto-refresh every 30s
-    tick = st_autorefresh(interval=30_000, key="auto_refresh")
+    # tick = st_autorefresh(interval=30_000, key="auto_refresh")
+    st_autorefresh(interval=30_000, key="auto_refresh")
     # st.caption(f"refresh tick: {tick}")
 
     # --- Load model (auto latest) ---

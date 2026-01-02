@@ -1,5 +1,4 @@
 import time
-from pathlib import Path
 
 from google.transit import gtfs_realtime_pb2
 

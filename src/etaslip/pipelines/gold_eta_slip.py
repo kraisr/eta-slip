@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import math
 import time
 from bisect import bisect_left
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
 import pyarrow as pa
 import pyarrow.compute as pc
