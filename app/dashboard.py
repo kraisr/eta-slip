@@ -213,7 +213,7 @@ def main() -> None:
                 st.markdown(f"**{station}**")
             with mid:
                 st.markdown(bar_html(p, thr), unsafe_allow_html=True)
-                st.caption(f"Risk: {pct:.0f}%")
+                st.caption(f"Risk: {pct:.0f}%" if pct >= 0.5 else "Risk: <1%")
             with right:
                 st.markdown(f"**ETA**\n\n{eta_min:.0f} min")
 
