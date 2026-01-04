@@ -156,7 +156,7 @@ def render_precision_panel(
         return
 
     st.subheader("Recent accuracy (precision)")
-    st.caption(f"From last {max_days} days.")
+    st.caption(f"From last {max_days} days. (Updated every 4 days)")
 
     chart = (
         alt.Chart(mdf)
