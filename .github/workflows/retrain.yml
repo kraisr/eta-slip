@@ -47,6 +47,8 @@ jobs:
           aws ssm wait command-executed \
             --command-id "${{ steps.send.outputs.command_id }}" \
             --instance-id "${{ secrets.EC2_INSTANCE_ID }}"
+            --delay 10 \
+            --max-attempts 120
 
       - name: Print stdout/stderr (and fail if not Success)
         shell: bash
