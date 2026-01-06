@@ -2,11 +2,11 @@ from __future__ import annotations
 
 
 def risk_color(p: float, thr: float) -> str:
-    if p >= max(thr, 0.60):
+    if p >= 0.75:
         return "#d73027"  # red
-    if p >= max(thr, 0.35):
+    if p >= 0.50:
         return "#fc8d59"  # orange
-    if p >= max(thr, 0.20):
+    if p >= 0.25:
         return "#fee08b"  # yellow
     return "#1a9850"  # green
 
