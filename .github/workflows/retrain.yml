@@ -39,28 +39,3 @@ jobs:
 
           echo "command_id=$CMD_ID" >> "$GITHUB_OUTPUT"
           echo "SSM CommandId: $CMD_ID"
-
-      - name: Wait for SSM command to finish
-        shell: bash
-        run: |
-          set -euo pipefail
-          aws ssm wait command-executed \
-            --command-id "${{ steps.send.outputs.command_id }}" \
-            --instance-id "${{ secrets.EC2_INSTANCE_ID }}"
-            --delay 10 \
-            --max-attempts 120
-
-      - name: Print stdout/stderr (and fail if not Success)
-        shell: bash
-        run: |
-          set -euo pipefail
-          aws ssm get-command-invocation \
-            --command-id "${{ steps.send.outputs.command_id }}" \
-            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
-            --output json | tee invocation.json
-
-          STATUS=$(jq -r '.Status' invocation.json)
-          echo "Status: $STATUS"
-          if [[ "$STATUS" != "Success" ]]; then
-            exit 1
-          fi
