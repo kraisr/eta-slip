@@ -21,7 +21,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}s
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Send retrain command to EC2 via SSM
         id: send
@@ -33,7 +33,7 @@ jobs:
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --comment "ETASlip retrain (GitHub Actions)" \
-            --parameters commands="cd /opt/ETASlip && bash -lc 'bin/retrain.sh'" \
+            --parameters commands='["sudo -u ec2-user -H bash -lc '\''/opt/etaslip/bin/retrain.sh'\''"]' \
             --query "Command.CommandId" \
             --output text)
 
