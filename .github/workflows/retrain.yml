@@ -9,7 +9,9 @@ on:
 jobs:
   retrain:
     runs-on: ubuntu-latest
-
+    environment:
+      name: Production
+      url: https://etaslip.com/
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
