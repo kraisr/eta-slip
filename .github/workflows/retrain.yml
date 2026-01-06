@@ -1,4 +1,4 @@
-name: Retrain (SSM)
+name: Retrain
 
 on:
   workflow_dispatch:
