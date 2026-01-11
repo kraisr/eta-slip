@@ -146,5 +146,5 @@ docker build -t etaslip:latest .
 docker run --rm -p 8501:8501 etaslip:latest
 ```
 
-[NOTE]: If docker is used to run the dashboard, the gold data needs to be mounted for the precision graph to show
+> Note: If docker is used to run the dashboard, the gold data needs to be mounted for the precision graph to show
 
