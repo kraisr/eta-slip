@@ -41,6 +41,12 @@ jobs:
           set -euo pipefail
           aws ssm wait command-executed \
             --command-id "${{ steps.send.outputs.command_id }}" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+          || aws ssm wait command-executed \
+            --command-id "${{ steps.send.outputs.command_id }}" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+          || aws ssm wait command-executed \
+            --command-id "${{ steps.send.outputs.command_id }}" \
             --instance-id "${{ secrets.EC2_INSTANCE_ID }}"
 
       - name: Print stdout/stderr (and fail if not Success)

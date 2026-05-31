@@ -17,7 +17,8 @@ RUN pip install --no-cache-dir "poetry==2.2.1"
 COPY pyproject.toml poetry.lock* /app/
 
 RUN poetry config virtualenvs.create false \
-  && poetry install --without dev --no-interaction --no-ansi --no-root
+  && poetry install --without dev --no-interaction --no-ansi --no-root \
+  && rm -rf /root/.cache/pypoetry /root/.cache/pip
 
 COPY . /app
 
