@@ -4,11 +4,11 @@ services:
     image: etaslip:latest
     container_name: etaslip-dashboard
     restart: unless-stopped
-    ports:
-      - "8501:8501"
     volumes:
       - ./raw:/app/raw
       - ./models:/app/models
+    expose:
+      - "8501"
     command:
       - poetry
       - run
@@ -33,3 +33,21 @@ services:
           poetry run python scripts/collect_once.py --out-root raw/gtfsrt
           sleep 60
         done
+
+  caddy:
+    image: caddy:2
+    container_name: etaslip-caddy
+    restart: unless-stopped
+    depends_on:
+      - dashboard
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

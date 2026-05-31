@@ -1,0 +1,3 @@
+etaslip.com, www.etaslip.com {
+    reverse_proxy dashboard:8501
+}
