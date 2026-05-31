@@ -1,0 +1,35 @@
+services:
+  dashboard:
+    build: .
+    image: etaslip:latest
+    container_name: etaslip-dashboard
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./raw:/app/raw
+      - ./models:/app/models
+    command:
+      - poetry
+      - run
+      - streamlit
+      - run
+      - app/dashboard.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+
+  collector:
+    image: etaslip:latest
+    container_name: etaslip-collector
+    restart: unless-stopped
+    volumes:
+      - ./raw:/app/raw
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          echo "Collecting GTFS-RT snapshot at $(date -Iseconds)"
+          poetry run python scripts/collect_once.py --out-root raw/gtfsrt
+          sleep 60
+        done
