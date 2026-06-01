@@ -137,9 +137,7 @@ def add_history_features(df: pd.DataFrame) -> pd.DataFrame:
     out["feed_ts"] = pd.to_numeric(out["feed_ts"], errors="coerce")
     out["eta_t"] = pd.to_numeric(out["eta_t"], errors="coerce")
     out["lead_sec"] = out["eta_t"] - out["feed_ts"]
-    out = out.sort_values(["stop_id", "next_trip_id", "feed_ts"]).reset_index(
-        drop=True
-    )
+    out = out.sort_values(["stop_id", "next_trip_id", "feed_ts"]).reset_index(drop=True)
 
     by_trip_stop = out.groupby(["stop_id", "next_trip_id"], sort=False, observed=True)
     out["prev_feed_ts"] = by_trip_stop["feed_ts"].shift(1)
