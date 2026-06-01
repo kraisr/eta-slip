@@ -6,6 +6,9 @@ ETASlip collects MTA GTFS-Realtime TripUpdates, builds training data from ETA
 changes, trains a model, and serves a Streamlit dashboard showing which stations
 are most likely to see ETA delays soon.
 
+<img width="1547" height="920" alt="image" src="https://github.com/user-attachments/assets/3fdbf7fe-7f52-471b-a1de-ebe1e355c62b" />
+
+
 ## ✨ What It Does
 
 - Scores the latest GTFS-RT snapshot for covered 6 train stops
