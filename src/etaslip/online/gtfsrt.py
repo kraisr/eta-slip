@@ -28,7 +28,8 @@ def fetch_feed_bytes(feed_url: str, timeout_sec: int = 20) -> bytes:
 
 def parse_tripupdates(feed_bytes: bytes) -> pd.DataFrame:
     """
-    Returns rows: feed_ts, route_id, trip_id, stop_id, eta (unix seconds)
+    Returns rows: feed_ts, route_id, trip_id, stop_id, eta (unix seconds),
+    plus GTFS-RT schedule relationship fields when available.
     """
     if gtfs_realtime_pb2 is None:
         raise RuntimeError(
@@ -51,16 +52,24 @@ def parse_tripupdates(feed_bytes: bytes) -> pd.DataFrame:
 
         route_id = getattr(trip, "route_id", "") or ""
         trip_id = getattr(trip, "trip_id", "") or ""
+        trip_schedule_relationship = _enum_name(
+            gtfs_realtime_pb2.TripDescriptor.ScheduleRelationship,
+            getattr(trip, "schedule_relationship", 0),
+        )
 
         for stu in tu.stop_time_update:
             stop_id = getattr(stu, "stop_id", "") or ""
-            eta = 0
+            stop_schedule_relationship = _enum_name(
+                gtfs_realtime_pb2.TripUpdate.StopTimeUpdate.ScheduleRelationship,
+                getattr(stu, "schedule_relationship", 0),
+            )
+            eta: int | None = None
             if stu.HasField("arrival") and getattr(stu.arrival, "time", 0):
                 eta = int(stu.arrival.time)
             elif stu.HasField("departure") and getattr(stu.departure, "time", 0):
                 eta = int(stu.departure.time)
 
-            if not stop_id or eta <= 0:
+            if not stop_id:
                 continue
 
             rows.append(
@@ -70,15 +79,32 @@ def parse_tripupdates(feed_bytes: bytes) -> pd.DataFrame:
                     "trip_id": trip_id,
                     "stop_id": stop_id,
                     "eta": eta,
+                    "trip_schedule_relationship": trip_schedule_relationship,
+                    "stop_schedule_relationship": stop_schedule_relationship,
                 }
             )
 
     if not rows:
         return pd.DataFrame(
-            columns=["feed_ts", "route_id", "trip_id", "stop_id", "eta"]
+            columns=[
+                "feed_ts",
+                "route_id",
+                "trip_id",
+                "stop_id",
+                "eta",
+                "trip_schedule_relationship",
+                "stop_schedule_relationship",
+            ]
         )
 
     return pd.DataFrame(rows)
+
+
+def _enum_name(enum_type, value: int) -> str:
+    try:
+        return enum_type.Name(int(value))
+    except Exception:
+        return str(int(value))
 
 
 def apply_filters(
@@ -96,3 +122,29 @@ def apply_filters(
     if stop_suffix:
         out = out[out["stop_id"].astype(str).str.endswith(stop_suffix)]
     return out
+
+
+def apply_filters_with_route_fallback(
+    df: pd.DataFrame,
+    *,
+    primary_route_filter: set[str],
+    fallback_route_filter: set[str],
+    stop_ids: Optional[set[str]],
+    stop_suffix: Optional[str],
+) -> tuple[pd.DataFrame, set[str], bool]:
+    primary = apply_filters(
+        df,
+        route_filter=primary_route_filter,
+        stop_ids=stop_ids,
+        stop_suffix=stop_suffix,
+    )
+    if not primary.empty:
+        return primary, primary_route_filter, False
+
+    fallback = apply_filters(
+        df,
+        route_filter=fallback_route_filter,
+        stop_ids=stop_ids,
+        stop_suffix=stop_suffix,
+    )
+    return fallback, fallback_route_filter, not fallback.empty
