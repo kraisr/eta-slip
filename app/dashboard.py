@@ -276,6 +276,7 @@ def main() -> None:
     #     max_days=14,
     # )
 
+
 def _render_service_issue_notice(service_issues) -> None:
     if service_issues.empty:
         return

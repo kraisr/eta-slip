@@ -241,12 +241,12 @@ def _add_online_history_features(
 def _add_station_history_features(events: pd.DataFrame) -> pd.DataFrame:
     out = events.copy()
     by_stop = out.groupby("stop_id", sort=False)
-    out["station_eta_abs_delta_mean_sec"] = by_stop[
-        "eta_abs_delta_prev_sec"
-    ].transform("mean")
-    out["station_eta_abs_delta_max_sec"] = by_stop[
-        "eta_abs_delta_prev_sec"
-    ].transform("max")
+    out["station_eta_abs_delta_mean_sec"] = by_stop["eta_abs_delta_prev_sec"].transform(
+        "mean"
+    )
+    out["station_eta_abs_delta_max_sec"] = by_stop["eta_abs_delta_prev_sec"].transform(
+        "max"
+    )
     out["station_lead_delta_mean_sec"] = by_stop["lead_delta_prev_sec"].transform(
         "mean"
     )
@@ -257,7 +257,9 @@ def _add_station_history_features(events: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def _update_online_history_state(events: pd.DataFrame, history_state: dict | None) -> None:
+def _update_online_history_state(
+    events: pd.DataFrame, history_state: dict | None
+) -> None:
     if history_state is None:
         return
 
