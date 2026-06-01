@@ -1,3 +1,17 @@
 etaslip.com, www.etaslip.com {
-    reverse_proxy dashboard:8501
+    reverse_proxy etaslip-dashboard:8501
+}
+
+backtest.khoaraisr.com {
+    handle /api/* {
+        reverse_proxy backtestsim-api:8080
+    }
+
+    handle /health {
+        reverse_proxy backtestsim-api:8080
+    }
+
+    handle {
+        reverse_proxy backtestsim-frontend:80
+    }
 }
