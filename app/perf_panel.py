@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from etaslip.modeling.dataset import DatasetSpec
+from etaslip.modeling.dataset import DatasetSpec, prepare_gold_dataframe
 
 NY_TZ = ZoneInfo("America/New_York")
 
@@ -72,17 +72,12 @@ def _eval_precision_by_day(
     if df.empty:
         return pd.DataFrame()
 
-    # Match filter if present in gold
-    if spec.match_col in df.columns:
-        df = df[df[spec.match_col] == spec.required_match_value].copy()
+    try:
+        df = prepare_gold_dataframe(df, spec)
+    except (KeyError, ValueError):
+        return pd.DataFrame()
 
-    needed = (
-        set([spec.target_col, "feed_ts"])
-        | set(spec.numeric_features)
-        | set(spec.categorical_features)
-    )
-    missing = [c for c in needed if c not in df.columns]
-    if missing:
+    if df.empty:
         return pd.DataFrame()
 
     # Day bucket (NY time)
@@ -105,9 +100,16 @@ def _eval_precision_by_day(
 
         tp = int(np.sum((p_d == 1) & (y_d == 1)))
         fp = int(np.sum((p_d == 1) & (y_d == 0)))
+        fn = int(np.sum((p_d == 0) & (y_d == 1)))
 
         # If no alerts that day, precision is NaN (chart will show a gap)
         prec = float(tp / (tp + fp)) if (tp + fp) > 0 else np.nan
+        recall = float(tp / (tp + fn)) if (tp + fn) > 0 else np.nan
+        f1 = (
+            float((2 * prec * recall) / (prec + recall))
+            if np.isfinite(prec) and np.isfinite(recall) and (prec + recall) > 0
+            else np.nan
+        )
 
         rows.append(
             {
@@ -115,7 +117,13 @@ def _eval_precision_by_day(
                 "model": model_name,
                 "precision": prec,
                 "precision_pct": prec * 100.0 if np.isfinite(prec) else np.nan,
+                "recall": recall,
+                "recall_pct": recall * 100.0 if np.isfinite(recall) else np.nan,
+                "f1": f1,
                 "alerts": int(np.sum(p_d)),
+                "tp": tp,
+                "fp": fp,
+                "fn": fn,
                 "threshold": float(thr),
                 "n": int(len(g)),
             }
@@ -155,20 +163,41 @@ def render_precision_panel(
         st.info("Could not compute precision (missing columns or no evaluable rows).")
         return
 
-    st.subheader("Recent accuracy (precision)")
+    st.subheader("Recent alert performance")
     st.caption(f"From last {max_days} days. (Updated every 4 days)")
 
+    chart_df = mdf.rename(
+        columns={"precision_pct": "Precision", "recall_pct": "Recall"}
+    ).melt(
+        id_vars=["day", "model", "alerts", "tp", "fp", "fn", "threshold", "n"],
+        value_vars=["Precision", "Recall"],
+        var_name="metric",
+        value_name="pct",
+    )
+
     chart = (
-        alt.Chart(mdf)
+        alt.Chart(chart_df)
         .mark_line(point=True)
         .encode(
             x=alt.X("day:N", title="Day"),
             y=alt.Y(
-                "precision_pct:Q",
-                title="Alert precision (%)",
+                "pct:Q",
+                title="Performance (%)",
                 scale=alt.Scale(domain=[0, 100]),
             ),
-            tooltip=["day", "model", "precision_pct", "alerts", "threshold", "n"],
+            color=alt.Color("metric:N", title=None),
+            tooltip=[
+                "day",
+                "model",
+                "metric",
+                "pct",
+                "alerts",
+                "tp",
+                "fp",
+                "fn",
+                "threshold",
+                "n",
+            ],
         )
     )
 

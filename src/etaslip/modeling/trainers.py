@@ -56,31 +56,26 @@ def train_xgb(
     X = df_train[list(spec.numeric_features) + list(spec.categorical_features)]
     y = df_train[spec.target_col].astype(int)
 
-    # scale_pos_weight helps imbalanced data
-    pos = float(y.sum())
-    neg = float(len(y) - y.sum())
-    spw = (neg / pos) if pos > 0 else 1.0
-
     pipe = Pipeline(
         steps=[
             ("prep", make_preprocessor(spec)),
             (
                 "clf",
                 XGBClassifier(
-                    n_estimators=500,
-                    max_depth=4,
-                    learning_rate=0.05,
-                    subsample=0.9,
-                    colsample_bytree=0.9,
-                    min_child_weight=5,
-                    gamma=0.0,
-                    reg_lambda=2.0,
-                    reg_alpha=0.0,
+                    n_estimators=700,
+                    max_depth=3,
+                    learning_rate=0.035,
+                    subsample=0.85,
+                    colsample_bytree=0.85,
+                    min_child_weight=8,
+                    gamma=0.2,
+                    reg_lambda=4.0,
+                    reg_alpha=0.1,
                     objective="binary:logistic",
                     eval_metric="aucpr",
                     random_state=random_state,
                     n_jobs=-1,
-                    scale_pos_weight=spw,
+                    scale_pos_weight=1.0,
                     tree_method="hist",
                 ),
             ),

@@ -10,25 +10,34 @@ import streamlit as st
 from streamlit_extras.st_keyup import st_keyup
 from streamlit_autorefresh import st_autorefresh
 
-from etaslip.modeling.dataset import DatasetSpec
 from etaslip.online.constants import (
     DEFAULT_FEED_URL,
     NY_TZ,
     SENSITIVITIES,
     STOP_IDS_FILE_DEFAULT,
 )
-from etaslip.online.features import build_features_from_events
+from etaslip.online.features import (
+    build_features_from_events,
+    build_service_issue_summary,
+    build_unscored_arrival_fallback,
+)
 from etaslip.online.gtfsrt import (
-    apply_filters,
+    apply_filters_with_route_fallback,
     fetch_feed_bytes,
     maybe_gunzip,
     parse_tripupdates,
 )
-from etaslip.online.model_artifacts import load_threshold, resolve_model_dir_latest
+from etaslip.online.model_artifacts import (
+    load_dataset_spec,
+    load_serving_params,
+    load_threshold,
+    resolve_model_dir_latest,
+)
 from etaslip.online.stops import load_stop_id_to_name_map, read_ordered_stop_ids
 
 from ui_utils import bar_html
-from perf_panel import render_precision_panel
+
+# from perf_panel import render_precision_panel
 
 
 def main() -> None:
@@ -76,7 +85,7 @@ def main() -> None:
         st.error(f"Model not found: {model_path}")
         st.stop()
 
-    spec = DatasetSpec()
+    spec = load_dataset_spec(model_dir)
 
     @st.cache_resource
     def _load_model(p: str):
@@ -85,6 +94,7 @@ def main() -> None:
     pipe = _load_model(str(model_path))
 
     base_thr = load_threshold(model_dir, model_name) or 0.5
+    serving_params = load_serving_params(model_dir)
     sens = next(s for s in SENSITIVITIES if s.label == sensitivity_label)
     thr = float(np.clip(base_thr * sens.multiplier, 0.001, 0.99))  # 0.1% floor
 
@@ -101,24 +111,45 @@ def main() -> None:
         st.stop()
 
     stop_ids_set = set(stop_order)
-    events = apply_filters(
+    events, route_filter_used, used_route_fallback = apply_filters_with_route_fallback(
         events,
-        route_filter={"6"},
+        primary_route_filter={"6"},
+        fallback_route_filter={"6X"},
         stop_ids=stop_ids_set,
         stop_suffix="S",
     )
+    service_issues = build_service_issue_summary(events, stop_name_map=name_map)
 
     feats = build_features_from_events(
         events,
         spec=spec,
-        arrival_rank=3,
-        min_lead_sec=480,
+        arrival_rank=serving_params.arrival_rank,
+        min_lead_sec=serving_params.min_lead_sec,
+        history_state=st.session_state.setdefault("feature_history_state", {}),
     )
 
     if feats.empty:
-        st.warning(
-            "No arrivals met the constraints right now (after filters). Try again in a minute."
+        _render_service_issue_notice(service_issues)
+        fallback = build_unscored_arrival_fallback(
+            events,
+            stop_order=stop_order,
+            stop_name_map=name_map,
+            min_lead_sec=serving_params.min_lead_sec,
         )
+        if fallback.empty:
+            st.warning(
+                "No covered southbound 6 arrivals are present in the live feed right now."
+            )
+        else:
+            st.warning(
+                "No arrivals meet the model scoring constraints right now. "
+                "Showing unscored live arrivals instead."
+            )
+            st.caption(
+                "Scoring needs at least two future arrivals at a station and one "
+                f"arrival at least {serving_params.min_lead_sec // 60} minutes away."
+            )
+            st.dataframe(fallback, hide_index=True, use_container_width=True)
         st.stop()
 
     X = feats[list(spec.numeric_features) + list(spec.categorical_features)]
@@ -144,6 +175,12 @@ def main() -> None:
     colB.metric("Alerts now", str(n_alerts))
     colC.metric("Alert threshold", f"{thr * 100:.1f}%")
 
+    _render_route_fallback_notice(
+        used_route_fallback=used_route_fallback,
+        route_filter_used=route_filter_used,
+    )
+    _render_service_issue_notice(service_issues)
+
     st.divider()
 
     # --- Alerts ---
@@ -164,7 +201,7 @@ def main() -> None:
                     margin-bottom: 10px;">
                     <div style="font-size: 18px; font-weight: 800;">{station}</div>
                     <div style="font-size: 14px; opacity: 0.95;">
-                    Next train ETA: <b>{eta_min:.0f} min</b> &nbsp;•&nbsp; Delay risk: <b>{pct:.0f}%</b>
+                    Train ETA: <b>{eta_min:.0f} min</b> &nbsp;•&nbsp; Delay risk: <b>{pct:.0f}%</b>
                     </div>
                 </div>
                 """,
@@ -215,28 +252,50 @@ def main() -> None:
                 st.markdown(bar_html(p, thr), unsafe_allow_html=True)
                 st.caption(f"Risk: {pct:.0f}%" if pct >= 0.5 else "Risk: <1%")
             with right:
-                st.markdown(f"**ETA**\n\n{eta_min:.0f} min")
+                st.markdown(f"**Train ETA**\n\n{eta_min:.0f} min")
 
-    # Download data
-    with st.expander("Download data"):
-        csv = (
-            out.sort_values("proba_slip", ascending=False)
-            .to_csv(index=False)
-            .encode("utf-8")
-        )
-        st.download_button(
-            "Download CSV", data=csv, file_name="eta_slip_scores.csv", mime="text/csv"
-        )
+    # # Download data
+    # with st.expander("Download data"):
+    #     csv = (
+    #         out.sort_values("proba_slip", ascending=False)
+    #         .to_csv(index=False)
+    #         .encode("utf-8")
+    #     )
+    #     st.download_button(
+    #         "Download CSV", data=csv, file_name="eta_slip_scores.csv", mime="text/csv"
+    #     )
 
-    st.divider()
+    # st.divider()
 
-    render_precision_panel(
-        spec=spec,
-        pipe=pipe,
-        model_name=model_name,
-        thr=thr,
-        gold_root="gold/eta_slip",
-        max_days=14,
+    # render_precision_panel(
+    #     spec=spec,
+    #     pipe=pipe,
+    #     model_name=model_name,
+    #     thr=thr,
+    #     gold_root="gold/eta_slip",
+    #     max_days=14,
+    # )
+
+def _render_service_issue_notice(service_issues) -> None:
+    if service_issues.empty:
+        return
+
+    st.warning(
+        "GTFS-RT marks some covered stop updates as skipped, no-data, or otherwise non-standard."
+    )
+    with st.expander("Service data details"):
+        st.dataframe(service_issues, hide_index=True, use_container_width=True)
+
+
+def _render_route_fallback_notice(
+    *, used_route_fallback: bool, route_filter_used: set[str]
+) -> None:
+    if not used_route_fallback:
+        return
+    routes = ", ".join(sorted(route_filter_used))
+    st.info(
+        f"No regular southbound 6 updates are present for the covered stops right now. "
+        f"Showing route {routes} updates from the live feed."
     )
 
 
