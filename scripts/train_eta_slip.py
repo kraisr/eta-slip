@@ -19,6 +19,10 @@ from etaslip.modeling.dataset import (
     TARGET_MODE_SLIP_SECONDS,
     load_gold,
     make_dataset_spec,
+    merge_trip_context_features,
+    merge_vehicle_alert_signals,
+    needs_trip_context_features,
+    needs_vehicle_alert_features,
     time_split_3way,
 )
 from etaslip.modeling.metrics import (
@@ -78,9 +82,34 @@ def main() -> None:
     )
     ap.add_argument(
         "--feature-set",
-        choices=["base", "history"],
+        choices=[
+            "base",
+            "history",
+            "history_trip",
+            "history_trip_static_vehicle",
+            "history_trip_static_vehicle_context",
+        ],
         default="base",
-        help="Feature set to train/serve. 'history' adds previous-snapshot features.",
+        help=(
+            "Feature set to train/serve. 'history' adds previous-snapshot features; "
+            "'history_trip' also parses NYCT trip IDs; "
+            "'history_trip_static_vehicle' adds static schedule and raw feed movement signals; "
+            "'history_trip_static_vehicle_context' adds trip-path context."
+        ),
+    )
+    ap.add_argument(
+        "--raw-signal-path",
+        help=(
+            "Parquet produced by scripts/build_vehicle_alert_signals.py. Required "
+            "for feature sets that include vehicle/alert signals."
+        ),
+    )
+    ap.add_argument(
+        "--trip-context-path",
+        help=(
+            "Parquet produced by scripts/build_trip_context_features.py. Required "
+            "for feature sets that include trip-path context."
+        ),
     )
 
     # Metadata for keeping live feature construction aligned with the gold builder.
@@ -114,6 +143,18 @@ def main() -> None:
         feature_set=args.feature_set,
     )
     df = load_gold(args.gold_path, spec)
+    if needs_vehicle_alert_features(spec):
+        if not args.raw_signal_path:
+            raise SystemExit(
+                "--raw-signal-path is required for vehicle/alert feature sets."
+            )
+        df = merge_vehicle_alert_signals(df, args.raw_signal_path)
+    if needs_trip_context_features(spec):
+        if not args.trip_context_path:
+            raise SystemExit(
+                "--trip-context-path is required for trip-context feature sets."
+            )
+        df = merge_trip_context_features(df, args.trip_context_path)
     train_df, val_df, test_df = time_split_3way(
         df,
         train_frac=args.train_frac,
@@ -194,6 +235,12 @@ def main() -> None:
             "split_by": args.split_by,
             "calibration": args.calibration,
             "threshold_beta": float(args.threshold_beta),
+            "raw_signal_path": str(args.raw_signal_path)
+            if args.raw_signal_path
+            else None,
+            "trip_context_path": str(args.trip_context_path)
+            if args.trip_context_path
+            else None,
         },
     }
     (out_root / "feature_schema.json").write_text(json.dumps(feature_schema, indent=2))

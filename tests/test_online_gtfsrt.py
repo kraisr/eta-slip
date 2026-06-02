@@ -3,7 +3,11 @@ from __future__ import annotations
 from google.transit import gtfs_realtime_pb2
 import pandas as pd
 
-from etaslip.online.gtfsrt import apply_filters_with_route_fallback, parse_tripupdates
+from etaslip.online.gtfsrt import (
+    apply_filters_with_route_fallback,
+    parse_tripupdates,
+    parse_vehicle_alert_signals,
+)
 
 
 def test_parse_tripupdates_keeps_schedule_relationship_without_eta():
@@ -51,3 +55,37 @@ def test_apply_filters_with_route_fallback_uses_6x_when_6_has_no_southbound_rows
     assert used_fallback is True
     assert routes == {"6X"}
     assert filtered["stop_id"].to_list() == ["640S"]
+
+
+def test_parse_vehicle_alert_signals_extracts_vehicle_and_delayed_alert():
+    ts = 1_700_000_000
+    msg = gtfs_realtime_pb2.FeedMessage()
+    msg.header.gtfs_realtime_version = "2.0"
+    msg.header.timestamp = ts
+
+    vehicle_ent = msg.entity.add()
+    vehicle_ent.id = "v1"
+    vehicle = vehicle_ent.vehicle
+    vehicle.trip.trip_id = "113500_6..S01R"
+    vehicle.trip.route_id = "6"
+    vehicle.timestamp = ts - 45
+    vehicle.stop_id = "638S"
+    vehicle.current_stop_sequence = 4
+    vehicle.current_status = gtfs_realtime_pb2.VehiclePosition.STOPPED_AT
+
+    alert_ent = msg.entity.add()
+    alert_ent.id = "a1"
+    alert = alert_ent.alert
+    informed = alert.informed_entity.add()
+    informed.trip.trip_id = "113500_6..S01R"
+    informed.trip.route_id = "6"
+    text = alert.header_text.translation.add()
+    text.text = "Train delayed"
+
+    parsed = parse_vehicle_alert_signals(msg.SerializeToString())
+
+    row = parsed.iloc[0]
+    assert row["next_trip_id"] == "113500_6..S01R"
+    assert row["vehicle_present"] == 1
+    assert row["vehicle_movement_age_sec"] == 45
+    assert row["trip_alert_delayed"] == 1

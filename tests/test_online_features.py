@@ -95,6 +95,94 @@ def test_live_features_add_history_when_schema_requires_it():
     assert row["lead_delta_expected_slip_sec"] == 30.0
 
 
+def test_live_features_add_trip_features_when_schema_requires_it():
+    spec = make_dataset_spec(feature_set="history_trip")
+    feed_ts = 1_700_000_000
+    events = pd.DataFrame(
+        [
+            {
+                "feed_ts": feed_ts,
+                "trip_id": "113500_6..S01R",
+                "stop_id": "640S",
+                "eta": feed_ts + 600,
+            },
+            {
+                "feed_ts": feed_ts,
+                "trip_id": "114000_6..S01R",
+                "stop_id": "640S",
+                "eta": feed_ts + 900,
+            },
+        ]
+    )
+
+    feats = build_features_from_events(
+        events,
+        spec=spec,
+        arrival_rank=1,
+        min_lead_sec=480,
+    )
+
+    row = feats.iloc[0]
+    assert row["trip_prefix_num"] == 113500.0
+    assert row["trip_pattern"] == "6..S01R"
+
+
+def test_live_features_add_trip_context_when_schema_requires_it():
+    spec = make_dataset_spec(feature_set="history_trip_static_vehicle_context")
+    feed_ts = 1_700_000_000
+    watched = pd.DataFrame(
+        [
+            {
+                "feed_ts": feed_ts,
+                "trip_id": "113500_6..S01R",
+                "stop_id": "640S",
+                "eta": feed_ts + 600,
+            },
+            {
+                "feed_ts": feed_ts,
+                "trip_id": "114000_6..S01R",
+                "stop_id": "640S",
+                "eta": feed_ts + 900,
+            },
+        ]
+    )
+    context = pd.DataFrame(
+        [
+            {
+                "feed_ts": feed_ts,
+                "trip_id": "113500_6..S01R",
+                "stop_id": "638S",
+                "eta": feed_ts + 360,
+            },
+            {
+                "feed_ts": feed_ts,
+                "trip_id": "113500_6..S01R",
+                "stop_id": "639S",
+                "eta": feed_ts + 480,
+            },
+            {
+                "feed_ts": feed_ts,
+                "trip_id": "113500_6..S01R",
+                "stop_id": "640S",
+                "eta": feed_ts + 600,
+            },
+        ]
+    )
+
+    feats = build_features_from_events(
+        watched,
+        spec=spec,
+        arrival_rank=1,
+        min_lead_sec=480,
+        context_events=context,
+    )
+
+    row = feats.iloc[0]
+    assert row["trip_update_stops_remaining"] == 3.0
+    assert row["trip_stop_rank_remaining"] == 3.0
+    assert row["trip_eta_gap_prev_stop_sec"] == 120.0
+
+
 def test_unscored_fallback_summarizes_arrivals_and_service_issues():
     feed_ts = 1_700_000_000
     events = pd.DataFrame(
