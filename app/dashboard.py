@@ -22,10 +22,12 @@ from etaslip.online.features import (
     build_unscored_arrival_fallback,
 )
 from etaslip.online.gtfsrt import (
+    apply_filters,
     apply_filters_with_route_fallback,
     fetch_feed_bytes,
     maybe_gunzip,
     parse_tripupdates,
+    parse_vehicle_alert_signals,
 )
 from etaslip.online.model_artifacts import (
     load_dataset_spec,
@@ -105,19 +107,30 @@ def main() -> None:
     try:
         raw = fetch_feed_bytes(DEFAULT_FEED_URL)
         feed_bytes = maybe_gunzip(raw)
-        events = parse_tripupdates(feed_bytes)
+        all_events = parse_tripupdates(feed_bytes)
+        vehicle_alert_signals = parse_vehicle_alert_signals(feed_bytes)
     except Exception as e:
         st.error(f"Live feed fetch/parse failed: {e}")
         st.stop()
 
     stop_ids_set = set(stop_order)
     events, route_filter_used, used_route_fallback = apply_filters_with_route_fallback(
-        events,
+        all_events,
         primary_route_filter={"6"},
         fallback_route_filter={"6X"},
         stop_ids=stop_ids_set,
         stop_suffix="S",
     )
+    context_events = apply_filters(
+        all_events,
+        route_filter=route_filter_used,
+        stop_ids=None,
+        stop_suffix=None,
+    )
+    if not vehicle_alert_signals.empty and "route_id" in vehicle_alert_signals.columns:
+        vehicle_alert_signals = vehicle_alert_signals[
+            vehicle_alert_signals["route_id"].isin(route_filter_used)
+        ].copy()
     service_issues = build_service_issue_summary(events, stop_name_map=name_map)
 
     feats = build_features_from_events(
@@ -126,6 +139,8 @@ def main() -> None:
         arrival_rank=serving_params.arrival_rank,
         min_lead_sec=serving_params.min_lead_sec,
         history_state=st.session_state.setdefault("feature_history_state", {}),
+        vehicle_alert_signals=vehicle_alert_signals,
+        context_events=context_events,
     )
 
     if feats.empty:

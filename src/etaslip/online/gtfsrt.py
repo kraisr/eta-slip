@@ -100,6 +100,110 @@ def parse_tripupdates(feed_bytes: bytes) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def parse_vehicle_alert_signals(feed_bytes: bytes) -> pd.DataFrame:
+    """
+    Return per-trip movement and delayed-alert signals from the same subway feed.
+    """
+    if gtfs_realtime_pb2 is None:
+        raise RuntimeError(
+            "Missing GTFS-RT protobuf bindings. Add dependency `gtfs-realtime-bindings`."
+        )
+
+    msg = gtfs_realtime_pb2.FeedMessage()
+    msg.ParseFromString(feed_bytes)
+
+    feed_ts = int(getattr(msg.header, "timestamp", 0) or 0)
+    if feed_ts <= 0:
+        feed_ts = int(time.time())
+
+    rows: dict[tuple[int, str], dict] = {}
+    for ent in msg.entity:
+        if ent.HasField("vehicle"):
+            vehicle = ent.vehicle
+            trip = vehicle.trip
+            trip_id = getattr(trip, "trip_id", "") or ""
+            if not trip_id:
+                continue
+            key = (feed_ts, trip_id)
+            row = rows.setdefault(key, _empty_signal_row(feed_ts, trip_id))
+            row["route_id"] = getattr(trip, "route_id", "") or ""
+            row["vehicle_present"] = 1
+            row["vehicle_timestamp"] = (
+                int(vehicle.timestamp) if getattr(vehicle, "timestamp", 0) else None
+            )
+            row["vehicle_current_status"] = int(getattr(vehicle, "current_status", -1))
+            row["vehicle_stop_id"] = getattr(vehicle, "stop_id", "") or ""
+            row["vehicle_stop_sequence"] = (
+                int(vehicle.current_stop_sequence)
+                if getattr(vehicle, "current_stop_sequence", 0)
+                else None
+            )
+
+        if ent.HasField("alert"):
+            alert = ent.alert
+            delayed = _alert_mentions_delay(alert)
+            if not delayed:
+                continue
+            for informed in alert.informed_entity:
+                trip = informed.trip
+                trip_id = getattr(trip, "trip_id", "") or ""
+                if not trip_id:
+                    continue
+                key = (feed_ts, trip_id)
+                row = rows.setdefault(key, _empty_signal_row(feed_ts, trip_id))
+                row["route_id"] = (
+                    getattr(trip, "route_id", "")
+                    or getattr(informed, "route_id", "")
+                    or row["route_id"]
+                )
+                row["trip_alert_delayed"] = 1
+
+    if not rows:
+        return _empty_signal_frame()
+
+    out = pd.DataFrame(rows.values())
+    out["vehicle_movement_age_sec"] = out["feed_ts"] - pd.to_numeric(
+        out["vehicle_timestamp"], errors="coerce"
+    )
+    return out
+
+
+def _empty_signal_row(feed_ts: int, trip_id: str) -> dict:
+    return {
+        "feed_ts": feed_ts,
+        "next_trip_id": trip_id,
+        "route_id": "",
+        "vehicle_present": 0,
+        "vehicle_timestamp": None,
+        "vehicle_current_status": None,
+        "vehicle_stop_id": "",
+        "vehicle_stop_sequence": None,
+        "trip_alert_delayed": 0,
+    }
+
+
+def _empty_signal_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "feed_ts",
+            "next_trip_id",
+            "route_id",
+            "vehicle_present",
+            "vehicle_timestamp",
+            "vehicle_current_status",
+            "vehicle_stop_id",
+            "vehicle_stop_sequence",
+            "trip_alert_delayed",
+            "vehicle_movement_age_sec",
+        ]
+    )
+
+
+def _alert_mentions_delay(alert) -> bool:
+    text = " ".join(t.text for t in alert.header_text.translation).lower()
+    return "delay" in text or "delayed" in text
+
+
 def _enum_name(enum_type, value: int) -> str:
     try:
         return enum_type.Name(int(value))

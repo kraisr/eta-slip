@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Union
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -43,7 +45,69 @@ HISTORY_NUMERIC_FEATURES: tuple[str, ...] = (
     "station_share_positive_eta_delta",
 )
 
+TRIP_NUMERIC_FEATURES: tuple[str, ...] = (
+    "trip_prefix_num",
+    "trip_prefix_sin",
+    "trip_prefix_cos",
+)
+
+STATIC_NUMERIC_FEATURES: tuple[str, ...] = (
+    "static_offset_sec",
+    "static_stop_sequence",
+    "static_terminal_offset_sec",
+    "static_num_stops",
+    "static_remaining_sec",
+    "static_progress_pct",
+    "static_missing",
+    "eta_vs_static_offset_sec",
+    "lead_vs_static_remaining_to_stop_sec",
+)
+
+VEHICLE_ALERT_NUMERIC_FEATURES: tuple[str, ...] = (
+    "vehicle_present",
+    "trip_alert_delayed",
+    "vehicle_movement_age_sec",
+    "vehicle_current_status_num",
+    "vehicle_stop_sequence",
+    "vehicle_stale_90s",
+    "vehicle_seq_to_selected",
+    "vehicle_at_selected_stop",
+)
+
+TRIP_CONTEXT_NUMERIC_FEATURES: tuple[str, ...] = (
+    "trip_update_stops_remaining",
+    "trip_update_eta_span_sec",
+    "trip_update_first_lead_sec",
+    "trip_update_last_lead_sec",
+    "trip_stop_rank_remaining",
+    "trip_stop_rank_pct_remaining",
+    "trip_stops_after_selected",
+    "trip_eta_gap_prev_stop_sec",
+    "trip_eta_gap_next_stop_sec",
+    "route_tripupdate_trip_count",
+    "route_stop_update_count",
+    "route_eta_mean_lead_sec",
+    "route_eta_std_sec",
+    "route_vehicle_signal_count",
+    "route_alert_delayed_trip_count",
+    "route_vehicle_stale_90_count",
+    "route_vehicle_movement_age_mean_sec",
+    "route_vehicle_movement_age_max_sec",
+    "route_vehicle_stale_share",
+    "route_alert_delayed_trip_share",
+    "vehicle_age_x_trip_rank_pct",
+    "vehicle_age_x_static_progress",
+    "alert_share_x_vehicle_stale",
+    "trip_remaining_per_route_trip",
+    "selected_gap_min_stop_sec",
+)
+
 CATEGORICAL_FEATURES: tuple[str, ...] = ("stop_id",)
+TRIP_CATEGORICAL_FEATURES: tuple[str, ...] = ("trip_pattern",)
+VEHICLE_ALERT_CATEGORICAL_FEATURES: tuple[str, ...] = ("vehicle_stop_id",)
+
+STATIC_6_FEATURES_PATH = Path("config/static_6_shape_stop_features.csv")
+NY_TZ = ZoneInfo("America/New_York")
 
 
 @dataclass(frozen=True)
@@ -72,8 +136,47 @@ def make_dataset_spec(
             numeric_features = BASE_NUMERIC_FEATURES
         elif feature_set == "history":
             numeric_features = BASE_NUMERIC_FEATURES + HISTORY_NUMERIC_FEATURES
+        elif feature_set == "history_trip":
+            numeric_features = (
+                BASE_NUMERIC_FEATURES + HISTORY_NUMERIC_FEATURES + TRIP_NUMERIC_FEATURES
+            )
+            if categorical_features is None:
+                categorical_features = CATEGORICAL_FEATURES + TRIP_CATEGORICAL_FEATURES
+        elif feature_set == "history_trip_static_vehicle":
+            numeric_features = (
+                BASE_NUMERIC_FEATURES
+                + HISTORY_NUMERIC_FEATURES
+                + TRIP_NUMERIC_FEATURES
+                + STATIC_NUMERIC_FEATURES
+                + VEHICLE_ALERT_NUMERIC_FEATURES
+            )
+            if categorical_features is None:
+                categorical_features = (
+                    CATEGORICAL_FEATURES
+                    + TRIP_CATEGORICAL_FEATURES
+                    + VEHICLE_ALERT_CATEGORICAL_FEATURES
+                )
+        elif feature_set == "history_trip_static_vehicle_context":
+            numeric_features = (
+                BASE_NUMERIC_FEATURES
+                + HISTORY_NUMERIC_FEATURES
+                + TRIP_NUMERIC_FEATURES
+                + STATIC_NUMERIC_FEATURES
+                + VEHICLE_ALERT_NUMERIC_FEATURES
+                + TRIP_CONTEXT_NUMERIC_FEATURES
+            )
+            if categorical_features is None:
+                categorical_features = (
+                    CATEGORICAL_FEATURES
+                    + TRIP_CATEGORICAL_FEATURES
+                    + VEHICLE_ALERT_CATEGORICAL_FEATURES
+                )
         else:
-            raise ValueError("feature_set must be 'base' or 'history'")
+            raise ValueError(
+                "feature_set must be 'base', 'history', 'history_trip', "
+                "'history_trip_static_vehicle', or "
+                "'history_trip_static_vehicle_context'"
+            )
 
     target_col = "slip_ge_threshold" if target_mode == TARGET_MODE_COLUMN else "target"
     return DatasetSpec(
@@ -87,6 +190,28 @@ def make_dataset_spec(
 
 def needs_history_features(spec: DatasetSpec) -> bool:
     return bool(set(spec.numeric_features) & set(HISTORY_NUMERIC_FEATURES))
+
+
+def needs_trip_features(spec: DatasetSpec) -> bool:
+    return bool(
+        (set(spec.numeric_features) & set(TRIP_NUMERIC_FEATURES))
+        or (set(spec.categorical_features) & set(TRIP_CATEGORICAL_FEATURES))
+    )
+
+
+def needs_static_features(spec: DatasetSpec) -> bool:
+    return bool(set(spec.numeric_features) & set(STATIC_NUMERIC_FEATURES))
+
+
+def needs_vehicle_alert_features(spec: DatasetSpec) -> bool:
+    return bool(
+        (set(spec.numeric_features) & set(VEHICLE_ALERT_NUMERIC_FEATURES))
+        or (set(spec.categorical_features) & set(VEHICLE_ALERT_CATEGORICAL_FEATURES))
+    )
+
+
+def needs_trip_context_features(spec: DatasetSpec) -> bool:
+    return bool(set(spec.numeric_features) & set(TRIP_CONTEXT_NUMERIC_FEATURES))
 
 
 def _collect_parquet_files(path: Path) -> list[Path]:
@@ -119,6 +244,399 @@ def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
         out["log_headway_sec"] = np.log1p(headway.clip(lower=0.0))
 
     return out
+
+
+def add_trip_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Parse stable, live-available signal from NYCT trip IDs.
+    """
+    out = df.copy()
+    if "next_trip_id" not in out.columns:
+        for col in TRIP_NUMERIC_FEATURES:
+            out[col] = 0.0
+        out["trip_pattern"] = ""
+        return out
+
+    trip_id = out["next_trip_id"].fillna("").astype(str)
+    prefix = trip_id.map(_trip_prefix_num)
+    phase = (prefix % 86400.0) / 86400.0
+
+    out["trip_prefix_num"] = prefix
+    out["trip_prefix_sin"] = np.sin(2.0 * np.pi * phase)
+    out["trip_prefix_cos"] = np.cos(2.0 * np.pi * phase)
+    out["trip_pattern"] = trip_id.map(_trip_pattern).astype("string")
+    return out
+
+
+def _trip_start_sec_from_id(trip_id: pd.Series) -> pd.Series:
+    code = trip_id.fillna("").astype(str).map(_trip_prefix_num)
+    # NYCT origin-time codes are hundredths of a minute past service-day midnight.
+    return code * 0.6
+
+
+def _local_seconds(ts: pd.Series) -> pd.Series:
+    local = pd.to_datetime(ts, unit="s", utc=True, errors="coerce").dt.tz_convert(NY_TZ)
+    return ((local.dt.hour * 3600) + (local.dt.minute * 60) + local.dt.second).astype(
+        float
+    )
+
+
+def _service_day_delta_seconds(event_sec: pd.Series, start_sec: pd.Series) -> pd.Series:
+    delta = event_sec - start_sec
+    delta = np.where(delta < -6 * 3600, delta + 86400.0, delta)
+    delta = np.where(delta > 30 * 3600, delta - 86400.0, delta)
+    return pd.Series(delta, index=event_sec.index)
+
+
+def _add_trip_timing_context(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    if "next_trip_id" not in out.columns:
+        out["trip_start_sec"] = 0.0
+    else:
+        out["trip_start_sec"] = _trip_start_sec_from_id(out["next_trip_id"])
+
+    if {"feed_ts", "eta_t"}.issubset(out.columns):
+        feed_sec = _local_seconds(pd.to_numeric(out["feed_ts"], errors="coerce"))
+        eta_sec = _local_seconds(pd.to_numeric(out["eta_t"], errors="coerce"))
+        out["trip_age_sec"] = _service_day_delta_seconds(
+            feed_sec, out["trip_start_sec"]
+        )
+        out["eta_elapsed_since_origin_sec"] = _service_day_delta_seconds(
+            eta_sec, out["trip_start_sec"]
+        )
+        out["lead_sec"] = pd.to_numeric(out["eta_t"], errors="coerce") - pd.to_numeric(
+            out["feed_ts"], errors="coerce"
+        )
+    else:
+        out["trip_age_sec"] = 0.0
+        out["eta_elapsed_since_origin_sec"] = 0.0
+        if "lead_sec" not in out.columns:
+            out["lead_sec"] = 0.0
+
+    return out
+
+
+def load_static_shape_stop_features(
+    path: Union[str, Path] = STATIC_6_FEATURES_PATH,
+) -> pd.DataFrame:
+    p = Path(path)
+    columns = [
+        "trip_pattern",
+        "stop_id",
+        "static_offset_sec",
+        "static_stop_sequence",
+        "static_terminal_offset_sec",
+        "static_num_stops",
+        "static_remaining_sec",
+        "static_progress_pct",
+    ]
+    if not p.exists():
+        return pd.DataFrame(columns=columns)
+    return pd.read_csv(p, dtype={"trip_pattern": "string", "stop_id": "string"})
+
+
+def add_static_features(
+    df: pd.DataFrame,
+    *,
+    static_features: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    out = _add_trip_timing_context(df)
+    if "trip_pattern" not in out.columns:
+        out = add_trip_features(out)
+
+    static = (
+        load_static_shape_stop_features()
+        if static_features is None
+        else static_features.copy()
+    )
+    if not static.empty:
+        out = out.merge(static, on=["trip_pattern", "stop_id"], how="left")
+    else:
+        for col in STATIC_NUMERIC_FEATURES:
+            out[col] = np.nan
+
+    out["static_missing"] = out["static_offset_sec"].isna().astype(int)
+    for col in (
+        "static_offset_sec",
+        "static_stop_sequence",
+        "static_terminal_offset_sec",
+        "static_num_stops",
+        "static_remaining_sec",
+        "static_progress_pct",
+    ):
+        out[col] = pd.to_numeric(out[col], errors="coerce").fillna(-1.0)
+
+    has_static = out["static_missing"].eq(0)
+    out["eta_vs_static_offset_sec"] = np.where(
+        has_static,
+        out["eta_elapsed_since_origin_sec"] - out["static_offset_sec"],
+        0.0,
+    )
+    out["lead_vs_static_remaining_to_stop_sec"] = np.where(
+        has_static,
+        out["lead_sec"] - (out["static_offset_sec"] - out["trip_age_sec"]),
+        0.0,
+    )
+    return out
+
+
+def add_vehicle_alert_features(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    out["vehicle_present"] = _numeric_feature(out, "vehicle_present", 0.0)
+    out["trip_alert_delayed"] = _numeric_feature(out, "trip_alert_delayed", 0.0)
+    out["vehicle_movement_age_sec"] = _numeric_feature(
+        out, "vehicle_movement_age_sec", 9999.0
+    ).clip(lower=0.0, upper=9999.0)
+    out["vehicle_current_status_num"] = _numeric_feature(
+        out, "vehicle_current_status", -1.0
+    )
+    out["vehicle_stop_sequence"] = _numeric_feature(out, "vehicle_stop_sequence", -1.0)
+    out["vehicle_stale_90s"] = (
+        out["vehicle_present"].eq(1.0) & out["vehicle_movement_age_sec"].gt(90.0)
+    ).astype(float)
+    if "vehicle_stop_id" in out.columns:
+        out["vehicle_stop_id"] = out["vehicle_stop_id"].fillna("").astype("string")
+    else:
+        out["vehicle_stop_id"] = ""
+
+    if "static_stop_sequence" not in out.columns:
+        out["static_stop_sequence"] = -1.0
+
+    out["vehicle_seq_to_selected"] = np.where(
+        out["vehicle_stop_sequence"].ge(0.0) & out["static_stop_sequence"].ge(0.0),
+        out["static_stop_sequence"] - out["vehicle_stop_sequence"],
+        999.0,
+    )
+    out["vehicle_at_selected_stop"] = (
+        out["vehicle_present"].eq(1.0)
+        & out["vehicle_stop_id"].astype(str).eq(out["stop_id"].astype(str))
+    ).astype(float)
+    return out
+
+
+def _numeric_feature(df: pd.DataFrame, col: str, default: float) -> pd.Series:
+    if col not in df.columns:
+        return pd.Series(default, index=df.index, dtype=float)
+    return pd.to_numeric(df[col], errors="coerce").fillna(default).astype(float)
+
+
+def merge_vehicle_alert_signals(
+    df: pd.DataFrame,
+    signals: Union[str, Path, pd.DataFrame] | None,
+) -> pd.DataFrame:
+    out = df.drop(
+        columns=[
+            "vehicle_present",
+            "vehicle_timestamp",
+            "vehicle_current_status",
+            "vehicle_stop_id",
+            "vehicle_stop_sequence",
+            "trip_alert_delayed",
+            "vehicle_movement_age_sec",
+            *VEHICLE_ALERT_NUMERIC_FEATURES,
+            *VEHICLE_ALERT_CATEGORICAL_FEATURES,
+        ],
+        errors="ignore",
+    )
+    if signals is None:
+        return add_vehicle_alert_features(out)
+
+    signal_df = (
+        pd.read_parquet(signals) if isinstance(signals, (str, Path)) else signals
+    )
+    if signal_df.empty:
+        return add_vehicle_alert_features(out)
+
+    signal_df = signal_df.drop_duplicates(["feed_ts", "next_trip_id"], keep="last")
+    out = out.merge(signal_df, on=["feed_ts", "next_trip_id"], how="left")
+    return add_vehicle_alert_features(out)
+
+
+def build_trip_context_from_events(
+    events: pd.DataFrame,
+    *,
+    vehicle_alert_signals: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    columns = ["feed_ts", "next_trip_id", "stop_id", *TRIP_CONTEXT_NUMERIC_FEATURES]
+    if events.empty or "eta" not in events.columns:
+        return pd.DataFrame(columns=columns)
+
+    out = events.copy()
+    if "trip_id" not in out.columns:
+        out["trip_id"] = ""
+    out["eta"] = pd.to_numeric(out["eta"], errors="coerce")
+    out["feed_ts"] = pd.to_numeric(out["feed_ts"], errors="coerce")
+    out = out[out["eta"].notna() & out["feed_ts"].notna()].copy()
+    out = out[out["eta"] >= out["feed_ts"]].copy()
+    if out.empty:
+        return pd.DataFrame(columns=columns)
+
+    out["next_trip_id"] = out["trip_id"].fillna("").astype(str)
+    out = out.sort_values(["feed_ts", "next_trip_id", "eta", "stop_id"])
+
+    by_trip = out.groupby(["feed_ts", "next_trip_id"], sort=False, observed=True)
+    out["trip_update_stops_remaining"] = (
+        by_trip["stop_id"].transform("count").astype(float)
+    )
+    out["trip_update_eta_first"] = by_trip["eta"].transform("min")
+    out["trip_update_eta_last"] = by_trip["eta"].transform("max")
+    out["trip_update_eta_span_sec"] = (
+        out["trip_update_eta_last"] - out["trip_update_eta_first"]
+    )
+    out["trip_update_first_lead_sec"] = out["trip_update_eta_first"] - out["feed_ts"]
+    out["trip_update_last_lead_sec"] = out["trip_update_eta_last"] - out["feed_ts"]
+    out["trip_stop_rank_remaining"] = by_trip.cumcount().astype(float) + 1.0
+    denom = (out["trip_update_stops_remaining"] - 1.0).clip(lower=1.0)
+    out["trip_stop_rank_pct_remaining"] = (
+        out["trip_stop_rank_remaining"] - 1.0
+    ) / denom
+    out["trip_stops_after_selected"] = (
+        out["trip_update_stops_remaining"] - out["trip_stop_rank_remaining"]
+    )
+    out["trip_eta_gap_prev_stop_sec"] = (out["eta"] - by_trip["eta"].shift(1)).fillna(
+        9999.0
+    )
+    out["trip_eta_gap_next_stop_sec"] = (by_trip["eta"].shift(-1) - out["eta"]).fillna(
+        9999.0
+    )
+
+    by_snapshot = out.groupby("feed_ts", sort=False, observed=True)
+    out["route_tripupdate_trip_count"] = by_snapshot["next_trip_id"].transform(
+        "nunique"
+    )
+    out["route_stop_update_count"] = by_snapshot["stop_id"].transform("count")
+    out["route_eta_mean_lead_sec"] = (
+        by_snapshot["eta"].transform("mean") - out["feed_ts"]
+    )
+    out["route_eta_std_sec"] = by_snapshot["eta"].transform("std").fillna(0.0)
+
+    snapshot_signals = _route_signal_context(vehicle_alert_signals)
+    if not snapshot_signals.empty:
+        out = out.merge(snapshot_signals, on="feed_ts", how="left")
+
+    for col in (
+        "route_vehicle_signal_count",
+        "route_alert_delayed_trip_count",
+        "route_vehicle_stale_90_count",
+        "route_vehicle_movement_age_mean_sec",
+        "route_vehicle_movement_age_max_sec",
+    ):
+        out[col] = _numeric_feature(out, col, 0.0)
+    out["route_vehicle_stale_share"] = out["route_vehicle_stale_90_count"] / out[
+        "route_vehicle_signal_count"
+    ].clip(lower=1.0)
+    out["route_alert_delayed_trip_share"] = out["route_alert_delayed_trip_count"] / out[
+        "route_tripupdate_trip_count"
+    ].clip(lower=1.0)
+
+    context_cols = [
+        "feed_ts",
+        "next_trip_id",
+        "stop_id",
+        *[
+            col
+            for col in TRIP_CONTEXT_NUMERIC_FEATURES
+            if col
+            not in {
+                "vehicle_age_x_trip_rank_pct",
+                "vehicle_age_x_static_progress",
+                "alert_share_x_vehicle_stale",
+                "trip_remaining_per_route_trip",
+                "selected_gap_min_stop_sec",
+            }
+        ],
+    ]
+    return out[context_cols].drop_duplicates(
+        ["feed_ts", "next_trip_id", "stop_id"], keep="last"
+    )
+
+
+def _route_signal_context(signals: pd.DataFrame | None) -> pd.DataFrame:
+    if signals is None or signals.empty:
+        return pd.DataFrame(columns=["feed_ts"])
+
+    sig = signals.copy()
+    sig["vehicle_present"] = _numeric_feature(sig, "vehicle_present", 0.0)
+    sig["trip_alert_delayed"] = _numeric_feature(sig, "trip_alert_delayed", 0.0)
+    sig["vehicle_movement_age_sec"] = _numeric_feature(
+        sig, "vehicle_movement_age_sec", np.nan
+    )
+    sig["vehicle_stale_90s"] = sig["vehicle_movement_age_sec"].gt(90.0).astype(float)
+    return sig.groupby("feed_ts", as_index=False).agg(
+        route_vehicle_signal_count=("vehicle_present", "sum"),
+        route_alert_delayed_trip_count=("trip_alert_delayed", "sum"),
+        route_vehicle_stale_90_count=("vehicle_stale_90s", "sum"),
+        route_vehicle_movement_age_mean_sec=("vehicle_movement_age_sec", "mean"),
+        route_vehicle_movement_age_max_sec=("vehicle_movement_age_sec", "max"),
+    )
+
+
+def merge_trip_context_features(
+    df: pd.DataFrame,
+    context: Union[str, Path, pd.DataFrame] | None,
+) -> pd.DataFrame:
+    out = df.drop(columns=list(TRIP_CONTEXT_NUMERIC_FEATURES), errors="ignore")
+    if context is None:
+        return add_trip_context_features(out)
+
+    context_df = (
+        pd.read_parquet(context) if isinstance(context, (str, Path)) else context.copy()
+    )
+    if context_df.empty:
+        return add_trip_context_features(out)
+
+    context_df = context_df.drop_duplicates(
+        ["feed_ts", "next_trip_id", "stop_id"], keep="last"
+    )
+    out = out.merge(context_df, on=["feed_ts", "next_trip_id", "stop_id"], how="left")
+    return add_trip_context_features(out)
+
+
+def add_trip_context_features(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    base_cols = [
+        col
+        for col in TRIP_CONTEXT_NUMERIC_FEATURES
+        if col
+        not in {
+            "vehicle_age_x_trip_rank_pct",
+            "vehicle_age_x_static_progress",
+            "alert_share_x_vehicle_stale",
+            "trip_remaining_per_route_trip",
+            "selected_gap_min_stop_sec",
+        }
+    ]
+    for col in base_cols:
+        out[col] = _numeric_feature(out, col, -1.0)
+
+    out["vehicle_age_x_trip_rank_pct"] = _numeric_feature(
+        out, "vehicle_movement_age_sec", 9999.0
+    ) * _numeric_feature(out, "trip_stop_rank_pct_remaining", -1.0)
+    out["vehicle_age_x_static_progress"] = _numeric_feature(
+        out, "vehicle_movement_age_sec", 9999.0
+    ) * _numeric_feature(out, "static_progress_pct", -1.0)
+    out["alert_share_x_vehicle_stale"] = _numeric_feature(
+        out, "route_alert_delayed_trip_share", -1.0
+    ) * _numeric_feature(out, "vehicle_stale_90s", 0.0)
+    out["trip_remaining_per_route_trip"] = _numeric_feature(
+        out, "trip_update_stops_remaining", -1.0
+    ) / _numeric_feature(out, "route_tripupdate_trip_count", 1.0).clip(lower=1.0)
+    out["selected_gap_min_stop_sec"] = np.minimum(
+        _numeric_feature(out, "trip_eta_gap_prev_stop_sec", 9999.0).clip(upper=9999.0),
+        _numeric_feature(out, "trip_eta_gap_next_stop_sec", 9999.0).clip(upper=9999.0),
+    )
+    for col in TRIP_CONTEXT_NUMERIC_FEATURES:
+        out[col] = _numeric_feature(out, col, 0.0)
+    return out
+
+
+def _trip_prefix_num(trip_id: str) -> float:
+    match = re.match(r"^(-?\d+)", trip_id)
+    return float(match.group(1)) if match else 0.0
+
+
+def _trip_pattern(trip_id: str) -> str:
+    return trip_id.split("_", 1)[1] if "_" in trip_id else ""
 
 
 def add_history_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -237,8 +755,16 @@ def apply_target(df: pd.DataFrame, spec: DatasetSpec) -> pd.DataFrame:
 
 def prepare_gold_dataframe(df: pd.DataFrame, spec: DatasetSpec) -> pd.DataFrame:
     out = add_derived_features(df)
+    if needs_trip_features(spec):
+        out = add_trip_features(out)
     if needs_history_features(spec):
         out = add_history_features(out)
+    if needs_static_features(spec):
+        out = add_static_features(out)
+    if needs_vehicle_alert_features(spec):
+        out = add_vehicle_alert_features(out)
+    if needs_trip_context_features(spec):
+        out = add_trip_context_features(out)
 
     out = apply_target(out, spec)
 
@@ -280,7 +806,12 @@ def load_gold(path: Union[str, Path], spec: DatasetSpec) -> pd.DataFrame:
         *spec.categorical_features,
         "slip_seconds",
     ]
-    if needs_history_features(spec):
+    if (
+        needs_history_features(spec)
+        or needs_trip_features(spec)
+        or needs_static_features(spec)
+        or needs_trip_context_features(spec)
+    ):
         cols.extend(["next_trip_id", "eta_t"])
 
     for f in files:

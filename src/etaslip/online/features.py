@@ -10,7 +10,16 @@ from etaslip.modeling.dataset import (
     HISTORY_NUMERIC_FEATURES,
     DatasetSpec,
     add_derived_features,
+    add_static_features,
+    build_trip_context_from_events,
+    add_trip_features,
+    merge_trip_context_features,
+    merge_vehicle_alert_signals,
     needs_history_features,
+    needs_static_features,
+    needs_trip_context_features,
+    needs_trip_features,
+    needs_vehicle_alert_features,
 )
 from etaslip.online.constants import NY_TZ
 
@@ -24,6 +33,8 @@ def build_features_from_events(
     arrival_rank: int,
     min_lead_sec: int,
     history_state: dict | None = None,
+    vehicle_alert_signals: pd.DataFrame | None = None,
+    context_events: pd.DataFrame | None = None,
     tz: ZoneInfo = NY_TZ,
 ) -> pd.DataFrame:
     """
@@ -77,7 +88,9 @@ def build_features_from_events(
         lead_k = float(selected["lead_sec"])
         headway = float(leads[1] - leads[0])
         row = {
+            "feed_ts": feed_ts,
             "stop_id": str(stop_id),
+            "next_trip_id": str(selected.get("trip_id", "")),
             "eta_t_minutes": lead_k / 60.0,
             "top2_headway_sec": headway,
             "num_arrivals_listed": num,
@@ -96,6 +109,18 @@ def build_features_from_events(
     df = pd.DataFrame(rows)
     if not df.empty:
         df = add_derived_features(df)
+        if needs_trip_features(spec):
+            df = add_trip_features(df)
+        if needs_static_features(spec):
+            df = add_static_features(df)
+        if needs_vehicle_alert_features(spec):
+            df = merge_vehicle_alert_signals(df, vehicle_alert_signals)
+        if needs_trip_context_features(spec):
+            trip_context = build_trip_context_from_events(
+                events if context_events is None else context_events,
+                vehicle_alert_signals=vehicle_alert_signals,
+            )
+            df = merge_trip_context_features(df, trip_context)
     for col in list(spec.numeric_features) + list(spec.categorical_features):
         if col not in df.columns:
             df[col] = np.nan
